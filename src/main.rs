@@ -1,11 +1,11 @@
+use clap::{Parser, Subcommand};
 use scraper::Selector;
+use std::error::Error;
 use std::fs;
 use std::io;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::error::Error;
-use clap::Parser;
-use clap::Subcommand;
+use std::process::{Command, Stdio};
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -16,29 +16,34 @@ struct Args {
 
 #[derive(Subcommand, Debug)]
 enum Commands {
+    /// Add contest directory and download sample case
     Add {
+        /// Contest name (e.g. ABC001)
         #[arg(short, long)]
-        contest_name: PathBuf,
+        contest_name: String,
     },
+    /// Test your code with sample case
     Test {
+        /// Command to run your code (e.g. "./abc001/a/a.out" or "python ./abc001/a/main.py")
         #[arg(short, long)]
         exec_command: String,
 
+        /// Sample case folder (e.g. "./abc001/a")
         #[arg(short, long)]
-        dir: Option<PathBuf>,
+        dir: PathBuf,
     },
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
     let args = Args::parse();
     if let Some(command) = args.command {
-        match command{
-            Commands::Add{contest_name} => {
-                todo!();
-            },
-            Commands::Test{exec_command, dir} => {
-                todo!();
-            },
+        match command {
+            Commands::Add { contest_name } => {
+                add_contest(&contest_name)?;
+            }
+            Commands::Test { exec_command, dir } => {
+                test(exec_command, dir)?;
+            }
         }
     }
     Ok(())
@@ -50,7 +55,7 @@ fn echo(s: &str, path: &Path) -> io::Result<()> {
     f.write_all(s.as_bytes())
 }
 
-fn problem_urls(contest_name: &str) -> Result<Vec<(String, String)>, Box<dyn Error>> {
+fn fetch_problem_urls(contest_name: &str) -> Result<Vec<(String, String)>, Box<dyn Error>> {
     let body = reqwest::blocking::get(format!(
         "https://atcoder.jp/contests/{}/tasks",
         contest_name
@@ -91,7 +96,7 @@ fn problem_urls(contest_name: &str) -> Result<Vec<(String, String)>, Box<dyn Err
     Ok(res)
 }
 
-fn problem_samples(url: &str) -> Result<(Vec<String>, Vec<String>), Box<dyn Error>> {
+fn fetch_problem_samples(url: &str) -> Result<(Vec<String>, Vec<String>), Box<dyn Error>> {
     // 問題ページのテキストを取得してパース
     let body = reqwest::blocking::get(url)
         .expect("Failed to get problem infomation.")
@@ -133,8 +138,8 @@ fn problem_samples(url: &str) -> Result<(Vec<String>, Vec<String>), Box<dyn Erro
     Ok((inputs, outputs))
 }
 
-fn get_contest(contest_name: &str) -> Result<(), Box<dyn Error>> {
-    let problems = problem_urls(&contest_name)?;
+fn add_contest(contest_name: &str) -> Result<(), Box<dyn Error>> {
+    let problems = fetch_problem_urls(&contest_name)?;
 
     // 入出力例のフォルダやファイルを生成
     let contest_path = format!("./{}", contest_name);
@@ -146,7 +151,7 @@ fn get_contest(contest_name: &str) -> Result<(), Box<dyn Error>> {
 
     problems.into_iter().try_for_each(
         |(problem_name, problem_url): (String, String)| -> Result<(), Box<dyn Error>> {
-            let (inputs, outputs) = problem_samples(&problem_url)?;
+            let (inputs, outputs) = fetch_problem_samples(&problem_url)?;
             let problem_path = contest_path.join(&problem_name);
             if !fs::exists(&problem_path)
                 .expect("Failed to check for the existence of the problem folder.")
@@ -182,6 +187,85 @@ fn get_contest(contest_name: &str) -> Result<(), Box<dyn Error>> {
             Ok(())
         },
     )?;
+
+    Ok(())
+}
+
+fn test(exec_command: String, dir: PathBuf) -> Result<(), Box<dyn Error>> {
+    if !fs::exists(&dir).expect("Failed to check for the existance of the input directory.") {
+        return Err("Input directory not found".into());
+    }
+    let in_dir = dir.join("in");
+    let out_dir = dir.join("out");
+
+    if !fs::exists(&in_dir).expect("Failed to check for the existance of the input directory.") {
+        return Err("Input directory not found".into());
+    }
+    if !fs::exists(&out_dir).expect("Failed to check for the existance of the output directory.") {
+        return Err("Output Directory not found".into());
+    }
+
+    let mut sample_inputs: Vec<String> = vec![];
+    let mut sample_outputs: Vec<String> = vec![];
+
+    for i in 1..10 {
+        let file_name = format!("{}.txt", i);
+        let in_dir_i = in_dir.join(&file_name);
+        let out_dir_i = out_dir.join(&file_name);
+        if !fs::exists(&in_dir_i).expect("Failed to check for the existance of the input file.") {
+            break;
+        }
+        if !fs::exists(&out_dir_i).expect("Failed to check for the existance of the output file.") {
+            break;
+        }
+        sample_inputs.push(
+            String::from_utf8_lossy(&fs::read(&in_dir_i).expect("Failed to read input file."))
+                .into_owned(),
+        );
+        sample_outputs.push(
+            String::from_utf8_lossy(&fs::read(&out_dir_i).expect("Failed to read output file."))
+                .into_owned(),
+        );
+    }
+    for i in 0..sample_inputs.len() {
+        let sample_input = &sample_inputs[i];
+        let sample_output = &sample_outputs[i];
+        let mut child = Command::new(&exec_command)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn() // コマンドを実行
+            .expect("Failed to run the code");
+        child
+            .stdin
+            .as_mut()
+            .expect("Failed to open stdin")
+            .write_all(sample_input.as_bytes())
+            .expect("Failed to write sample input to stdin");
+        let output = child
+            .wait_with_output()
+            .expect("Failed to get output of your code.");
+        if !output.status.success() {
+            return Err("runtime error".into());
+        }
+
+        let output = String::from_utf8_lossy(&output.stdout).to_string();
+
+        if *output != *sample_output {
+            println!(
+                "Wrong Answer
+input:
+{}
+your output:
+{}
+expected output:
+{}",
+                &sample_input, &output, &sample_output
+            );
+            return Err("WA".into());
+        }
+    }
+
+    println!("Accepted!");
 
     Ok(())
 }
