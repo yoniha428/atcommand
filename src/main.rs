@@ -2,8 +2,47 @@ use scraper::Selector;
 use std::fs;
 use std::io;
 use std::io::Write;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::error::Error;
+use clap::Parser;
+use clap::Subcommand;
+
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+struct Args {
+    #[command(subcommand)]
+    command: Option<Commands>,
+}
+
+#[derive(Subcommand, Debug)]
+enum Commands {
+    Add {
+        #[arg(short, long)]
+        contest_name: PathBuf,
+    },
+    Test {
+        #[arg(short, long)]
+        exec_command: String,
+
+        #[arg(short, long)]
+        dir: Option<PathBuf>,
+    },
+}
+
+fn main() -> Result<(), Box<dyn Error>> {
+    let args = Args::parse();
+    if let Some(command) = args.command {
+        match command{
+            Commands::Add{contest_name} => {
+                todo!();
+            },
+            Commands::Test{exec_command, dir} => {
+                todo!();
+            },
+        }
+    }
+    Ok(())
+}
 
 fn echo(s: &str, path: &Path) -> io::Result<()> {
     let mut f = fs::File::create(path)?;
@@ -94,11 +133,7 @@ fn problem_samples(url: &str) -> Result<(Vec<String>, Vec<String>), Box<dyn Erro
     Ok((inputs, outputs))
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
-    // コンテスト名からURLを取得
-    let mut contest_name = String::new();
-    std::io::stdin().read_line(&mut contest_name).unwrap();
-    let contest_name: String = contest_name.trim().parse()?;
+fn get_contest(contest_name: &str) -> Result<(), Box<dyn Error>> {
     let problems = problem_urls(&contest_name)?;
 
     // 入出力例のフォルダやファイルを生成
