@@ -255,7 +255,6 @@ fn fetch_problem_urls(contest_name: &str, session: &str) -> Vec<(String, String)
     let td_selector = Selector::parse("td").unwrap();
     let a_selector = Selector::parse("a").unwrap();
 
-    
     document
         .select(&tr_selector)
         .filter_map(|tr| {
@@ -485,8 +484,8 @@ fn write_config(config: &Config) {
 // start utils
 
 fn echo(s: &str, path: &Path) {
-    let mut f =
-        fs::File::create(path).unwrap_or_else(|_| panic!("Failed to open {}", path.to_string_lossy()));
+    let mut f = fs::File::create(path)
+        .unwrap_or_else(|_| panic!("Failed to open {}", path.to_string_lossy()));
 
     f.write_all(s.as_bytes())
         .unwrap_or_else(|_| panic!("Failed to write to {}", path.to_string_lossy()));
@@ -495,8 +494,8 @@ fn echo(s: &str, path: &Path) {
 fn ensure_dir<P: AsRef<Path>>(path: P) {
     // ディレクトリを作る（存在していてもOK）
     let path = path.as_ref();
-    fs::create_dir_all(path).unwrap_or_else(|_| panic!("Failed to ensure directory {}",
-        path.to_string_lossy()));
+    fs::create_dir_all(path)
+        .unwrap_or_else(|_| panic!("Failed to ensure directory {}", path.to_string_lossy()));
 }
 
 fn write_if_empty<P: AsRef<Path>>(path: P, content: &str) {
@@ -513,8 +512,8 @@ fn write_if_empty<P: AsRef<Path>>(path: P, content: &str) {
 
     // 中身をチェック
     let mut buf = String::new();
-    file.read_to_string(&mut buf).unwrap_or_else(|_| panic!("Failed to check if {} is empty",
-        path.to_string_lossy()));
+    file.read_to_string(&mut buf)
+        .unwrap_or_else(|_| panic!("Failed to check if {} is empty", path.to_string_lossy()));
 
     // 空なら書き込む
     if buf.is_empty() {
