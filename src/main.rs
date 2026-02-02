@@ -10,7 +10,6 @@ use std::{
     process::{Command, Stdio},
 };
 
-
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct Config {
     templates: Vec<Template>,
@@ -127,8 +126,18 @@ fn main() -> Result<(), ()> {
         match command {
             Commands::Add { contest_name, lang } => {
                 let template = match lang {
-                    Some(lang) => config.templates.into_iter().filter(|template| template.lang == lang).next().expect(&format!("Language {} not found.", lang)),
-                    None => config.templates.into_iter().filter(|template| template.default).next().expect("Default language not found.")
+                    Some(lang) => config
+                        .templates
+                        .into_iter()
+                        .filter(|template| template.lang == lang)
+                        .next()
+                        .expect(&format!("Language {} not found.", lang)),
+                    None => config
+                        .templates
+                        .into_iter()
+                        .filter(|template| template.default)
+                        .next()
+                        .expect("Default language not found."),
                 };
                 let path = PathBuf::from(template.path);
                 add_contest(&contest_name, &path, &session);
@@ -172,7 +181,7 @@ fn main() -> Result<(), ()> {
 
 // start subcommand add
 
-/// Add contest folder and download sample cases. 
+/// Add contest folder and download sample cases.
 fn add_contest(contest_name: &str, path: &PathBuf, session: &str) {
     let problems = fetch_problem_urls(&contest_name, &session);
 
@@ -194,7 +203,8 @@ fn add_contest(contest_name: &str, path: &PathBuf, session: &str) {
             let out_path = problem_path.join("out");
             ensure_dir(&out_path);
 
-            let code_path = problem_path.join(path.file_name().expect("Failed to get path of code."));
+            let code_path =
+                problem_path.join(path.file_name().expect("Failed to get path of code."));
             let template_code = fs::read(&path).expect("Failed to read template code.");
             let template_code = String::from_utf8_lossy(&template_code);
 
@@ -228,14 +238,19 @@ fn fetch_problem_urls(contest_name: &str, session: &str) -> Vec<(String, String)
             contest_name
         ))
         // .get("https://atcoder.jp/settings")
-        .header(reqwest::header::COOKIE,
-        format!("REVEL_SESSION={}", session),)
+        .header(
+            reqwest::header::COOKIE,
+            format!("REVEL_SESSION={}", session),
+        )
         .send()
         .expect("Failed to get contest infomation.")
         .text()
         .expect("Failed to parse request.");
     // println!("{}", &body);
-    assert!(body.contains("ログアウト") || body.contains("Sign Out"), "not logged in (session expired?)");
+    assert!(
+        body.contains("ログアウト") || body.contains("Sign Out"),
+        "not logged in (session expired?)"
+    );
     let document = scraper::Html::parse_document(&body);
 
     let tr_selector = Selector::parse("table tbody tr").unwrap();
@@ -471,10 +486,12 @@ fn write_config(config: Config) {
 
 // start utils
 
-fn echo(s: &str, path: &Path){
-    let mut f = fs::File::create(path).expect(&format!("Failed to open {}", path.to_string_lossy()));
+fn echo(s: &str, path: &Path) {
+    let mut f =
+        fs::File::create(path).expect(&format!("Failed to open {}", path.to_string_lossy()));
 
-    f.write_all(s.as_bytes()).expect(&format!("Failed to write to {}", path.to_string_lossy()));
+    f.write_all(s.as_bytes())
+        .expect(&format!("Failed to write to {}", path.to_string_lossy()));
 }
 
 fn ensure_dir<P: AsRef<Path>>(path: P) {
