@@ -99,8 +99,8 @@ fn main() -> Result<(), ()> {
     let proj = project_dir();
     let config_path = proj.config_dir();
     let session_path = proj.data_dir();
-    ensure_dir(&config_path);
-    ensure_dir(&session_path);
+    ensure_dir(config_path);
+    ensure_dir(session_path);
     let config_path = config_path.join("config.toml");
     let session_path = session_path.join("session.toml");
     write_if_empty(
@@ -129,14 +129,12 @@ fn main() -> Result<(), ()> {
                     Some(lang) => config
                         .templates
                         .into_iter()
-                        .filter(|template| template.lang == lang)
-                        .next()
-                        .expect(&format!("Language {} not found.", lang)),
+                        .find(|template| template.lang == lang)
+                        .unwrap_or_else(|| panic!("Language {} not found.", lang)),
                     None => config
                         .templates
                         .into_iter()
-                        .filter(|template| template.default)
-                        .next()
+                        .find(|template| template.default)
                         .expect("Default language not found."),
                 };
                 let path = PathBuf::from(template.path);
