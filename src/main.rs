@@ -96,11 +96,10 @@ enum ConfigCommand {
 }
 
 fn main() -> Result<(), ()> {
-    let proj = project_dir();
-    let config_path = proj.config_dir();
-    let session_path = proj.data_dir();
-    ensure_dir(config_path);
-    ensure_dir(session_path);
+    let config_path = config_dir();
+    let session_path = data_dir();
+    ensure_dir(&config_path);
+    ensure_dir(&session_path);
     let config_path = config_path.join("config.toml");
     let session_path = session_path.join("session.toml");
     write_if_empty(
@@ -169,7 +168,7 @@ fn main() -> Result<(), ()> {
                     print_config_dir();
                 }
                 ConfigCommand::CookieDir => {
-                    print_cookie_dir();
+                    print_session_dir();
                 }
             },
         }
@@ -464,17 +463,17 @@ fn set_default_lang(lang: &str, config: &Config) -> Config {
 }
 
 fn print_config_dir() {
-    let path = project_dir().config_dir().join("config.toml");
+    let path = config_dir().join("config.toml");
     println!("{}", path.to_string_lossy().into_owned());
 }
 
-fn print_cookie_dir() {
-    let path = project_dir().data_dir().join("session.toml");
+fn print_session_dir() {
+    let path = data_dir().join("session.toml");
     println!("{}", path.to_string_lossy().into_owned());
 }
 
 fn write_config(config: &Config) {
-    let path = project_dir().config_dir().join("config.toml");
+    let path = config_dir().join("config.toml");
     let toml = toml::to_string_pretty(&config).expect("Failed to parse config to toml.");
     fs::write(path, toml).expect("Failed to write config.toml");
 }
@@ -522,8 +521,24 @@ fn write_if_empty<P: AsRef<Path>>(path: P, content: &str) {
     }
 }
 
-fn project_dir() -> ProjectDirs {
-    ProjectDirs::from("jp", "yoniha", "atcommand").expect("Project directory not found")
+fn config_dir() -> PathBuf {
+    if let Ok(dir) = std::env::var("ATCOMMAND_CONFIG_DIR") {
+        return PathBuf::from(dir);
+    }
+
+    let proj = ProjectDirs::from("jp", "yoniha", "atcommand").expect("cannot find config dir");
+
+    proj.config_dir().to_path_buf()
+}
+
+fn data_dir() -> PathBuf {
+    if let Ok(dir) = std::env::var("ATCOMMAND_DATA_DIR") {
+        return PathBuf::from(dir);
+    }
+
+    let proj = ProjectDirs::from("jp", "yoniha", "atcommand").expect("cannot find data dir");
+
+    proj.config_dir().to_path_buf()
 }
 
 // end utils
