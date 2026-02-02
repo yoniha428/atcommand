@@ -181,14 +181,14 @@ fn main() -> Result<(), ()> {
 
 /// Add contest folder and download sample cases.
 fn add_contest(contest_name: &str, path: &PathBuf, session: &str) {
-    let problems = fetch_problem_urls(&contest_name, &session);
+    let problems = fetch_problem_urls(contest_name, session);
 
     // 入出力例のフォルダやファイルを生成
     let contest_path = format!("./{}", contest_name);
     let contest_path = Path::new(contest_path.as_str());
 
-    if !fs::exists(&contest_path).expect("Failed to check for the existence of the test folder.") {
-        fs::create_dir(&contest_path).expect("Failed to create output folder.");
+    if !fs::exists(contest_path).expect("Failed to check for the existence of the test folder.") {
+        fs::create_dir(contest_path).expect("Failed to create output folder.");
     }
 
     problems
@@ -203,7 +203,7 @@ fn add_contest(contest_name: &str, path: &PathBuf, session: &str) {
 
             let code_path =
                 problem_path.join(path.file_name().expect("Failed to get path of code."));
-            let template_code = fs::read(&path).expect("Failed to read template code.");
+            let template_code = fs::read(path).expect("Failed to read template code.");
             let template_code = String::from_utf8_lossy(&template_code);
 
             echo(&template_code, &code_path);
@@ -212,14 +212,14 @@ fn add_contest(contest_name: &str, path: &PathBuf, session: &str) {
                 let file_name = (index + 1).to_string() + ".txt";
                 let file_path = &in_path.join(file_name);
 
-                echo(&input, &file_path);
+                echo(input, file_path);
             });
 
             outputs.iter().enumerate().for_each(|(index, input)| {
                 let file_name = (index + 1).to_string() + ".txt";
                 let file_path = &out_path.join(file_name);
 
-                echo(&input, &file_path);
+                echo(input, file_path);
             });
         });
 }
@@ -255,7 +255,8 @@ fn fetch_problem_urls(contest_name: &str, session: &str) -> Vec<(String, String)
     let td_selector = Selector::parse("td").unwrap();
     let a_selector = Selector::parse("a").unwrap();
 
-    let res = document
+    
+    document
         .select(&tr_selector)
         .filter_map(|tr| {
             let tds: Vec<_> = tr.select(&td_selector).collect();
@@ -285,8 +286,7 @@ fn fetch_problem_urls(contest_name: &str, session: &str) -> Vec<(String, String)
 
             Some((label, full_url))
         })
-        .collect();
-    res
+        .collect()
 }
 
 fn fetch_problem_samples(url: &str) -> (Vec<String>, Vec<String>) {
@@ -339,7 +339,7 @@ fn fetch_problem_samples(url: &str) -> (Vec<String>, Vec<String>) {
 /// Return Err(reason) if not accepted
 fn test(exec_command: &str, dir: &PathBuf) -> Result<usize, String> {
     assert!(
-        fs::exists(&dir).expect("Failed to check for the existance of the input directory."),
+        fs::exists(dir).expect("Failed to check for the existance of the input directory."),
         "Directory not found"
     );
     let in_dir = dir.join("in");
@@ -382,7 +382,7 @@ fn test(exec_command: &str, dir: &PathBuf) -> Result<usize, String> {
     for i in 0..sample_inputs.len() {
         let sample_input = &sample_inputs[i];
         let sample_output = &sample_outputs[i];
-        let mut child = Command::new(&exec_command)
+        let mut child = Command::new(exec_command)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .spawn() // コマンドを実行
@@ -430,7 +430,7 @@ fn print_lang_list(config: &Config) {
     }
 }
 
-fn add_lang(lang: &str, path: &PathBuf, config: &Config) -> Config {
+fn add_lang(lang: &str, path: &Path, config: &Config) -> Config {
     assert_eq!(
         config
             .templates
@@ -486,19 +486,17 @@ fn write_config(config: &Config) {
 
 fn echo(s: &str, path: &Path) {
     let mut f =
-        fs::File::create(path).expect(&format!("Failed to open {}", path.to_string_lossy()));
+        fs::File::create(path).unwrap_or_else(|_| panic!("Failed to open {}", path.to_string_lossy()));
 
     f.write_all(s.as_bytes())
-        .expect(&format!("Failed to write to {}", path.to_string_lossy()));
+        .unwrap_or_else(|_| panic!("Failed to write to {}", path.to_string_lossy()));
 }
 
 fn ensure_dir<P: AsRef<Path>>(path: P) {
     // ディレクトリを作る（存在していてもOK）
     let path = path.as_ref();
-    fs::create_dir_all(&path).expect(&format!(
-        "Failed to ensure directory {}",
-        path.to_string_lossy()
-    ));
+    fs::create_dir_all(path).unwrap_or_else(|_| panic!("Failed to ensure directory {}",
+        path.to_string_lossy()));
 }
 
 fn write_if_empty<P: AsRef<Path>>(path: P, content: &str) {
@@ -509,20 +507,19 @@ fn write_if_empty<P: AsRef<Path>>(path: P, content: &str) {
         .read(true)
         .write(true)
         .create(true)
+        .truncate(false)
         .open(path)
-        .expect(&format!("Failed to open file {}", path.to_string_lossy()));
+        .unwrap_or_else(|_| panic!("Failed to open file {}", path.to_string_lossy()));
 
     // 中身をチェック
     let mut buf = String::new();
-    file.read_to_string(&mut buf).expect(&format!(
-        "Failed to check if {} is empty",
-        path.to_string_lossy()
-    ));
+    file.read_to_string(&mut buf).unwrap_or_else(|_| panic!("Failed to check if {} is empty",
+        path.to_string_lossy()));
 
     // 空なら書き込む
     if buf.is_empty() {
         file.write_all(content.as_bytes())
-            .expect(&format!("Failed to write to {}", path.to_string_lossy()));
+            .unwrap_or_else(|_| panic!("Failed to write to {}", path.to_string_lossy()));
     }
 }
 
