@@ -153,19 +153,19 @@ fn main() -> Result<(), ()> {
             },
             Commands::Config { sub_command } => match sub_command {
                 ConfigCommand::LangList => {
-                    print_lang_list(config);
+                    print_lang_list(&config);
                 }
                 ConfigCommand::AddLang { lang, path } => {
-                    let config = add_lang(lang, path, config);
-                    write_config(config);
+                    let config = add_lang(&lang, &path, &config);
+                    write_config(&config);
                 }
                 ConfigCommand::DeleteLang { lang } => {
-                    let config = delete_lang(lang, config);
-                    write_config(config);
+                    let config = delete_lang(&lang, &config);
+                    write_config(&config);
                 }
                 ConfigCommand::DefaultLang { lang } => {
-                    let config = set_default_lang(lang, config);
-                    write_config(config);
+                    let config = set_default_lang(&lang, &config);
+                    write_config(&config);
                 }
                 ConfigCommand::ConfigDir => {
                     print_config_dir();
@@ -426,13 +426,13 @@ expected output:
 
 // start subcommand config
 
-fn print_lang_list(config: Config) {
+fn print_lang_list(config: &Config) {
     for t in &config.templates {
         println!("lang: {}, path: {}", t.lang, t.path);
     }
 }
 
-fn add_lang(lang: String, path: PathBuf, config: Config) -> Config {
+fn add_lang(lang: &str, path: &PathBuf, config: &Config) -> Config {
     assert_eq!(
         config
             .templates
@@ -445,20 +445,20 @@ fn add_lang(lang: String, path: PathBuf, config: Config) -> Config {
     let path = path.canonicalize().expect("Path not found");
     let mut config = config.clone();
     config.templates.push(Template {
-        lang: lang,
+        lang: lang.to_owned(),
         path: path.to_string_lossy().into(),
         default: false,
     });
     config
 }
 
-fn delete_lang(lang: String, config: Config) -> Config {
+fn delete_lang(lang: &str, config: &Config) -> Config {
     let mut config = config.clone();
     config.templates.retain(|template| template.lang != lang);
     config
 }
 
-fn set_default_lang(lang: String, config: Config) -> Config {
+fn set_default_lang(lang: &str, config: &Config) -> Config {
     let mut config = config.clone();
     for template in &mut config.templates {
         template.default = template.lang == lang;
@@ -476,7 +476,7 @@ fn print_cookie_dir() {
     println!("{}", path.to_string_lossy().into_owned());
 }
 
-fn write_config(config: Config) {
+fn write_config(config: &Config) {
     let path = project_dir().config_dir().join("config.toml");
     let toml = toml::to_string_pretty(&config).expect("Failed to parse config to toml.");
     fs::write(path, toml).expect("Failed to write config.toml");
