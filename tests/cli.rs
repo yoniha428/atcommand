@@ -3,7 +3,7 @@ use atcommand::util;
 use predicates::str;
 
 #[test]
-fn add_works() {
+fn add_without_session_works() {
     let config_dir = tempfile::tempdir().unwrap();
     let data_dir = tempfile::tempdir().unwrap();
     let work_dir = tempfile::tempdir().unwrap();
@@ -32,13 +32,8 @@ fn add_works() {
         .arg("-l")
         .arg("cpp")
         .assert()
-        .success();
-
-    let abc_a_dir = work_dir.path().join("abc001").join("A");
-
-    assert!(abc_a_dir.join("main.cpp").exists());
-    assert!(abc_a_dir.join("in").join("1.txt").exists());
-    assert!(abc_a_dir.join("out").join("1.txt").exists());
+        .failure()
+        .stderr(str::contains("session"));
 }
 
 #[test]
