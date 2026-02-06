@@ -1,5 +1,5 @@
 use clap::{Parser, Subcommand};
-use std::path::PathBuf;
+use std::{path::PathBuf, process};
 mod add;
 mod config;
 mod test;
@@ -73,7 +73,7 @@ enum ConfigCommand {
     CookieDir,
 }
 
-fn main() -> Result<(), ()> {
+fn main() {
     let config = config::config();
     let session = config::session().revel_session;
 
@@ -84,15 +84,12 @@ fn main() -> Result<(), ()> {
                 let path = config::lang_path(lang, config);
                 add::add_contest(&contest_name, &path, &session);
             }
-            Commands::Test { exec_command, dir } => match test::test(&exec_command, &dir) {
-                Ok(sample_size) => {
-                    println!("Accepted! tested {} cases", sample_size);
+            Commands::Test { exec_command, dir } => {
+                if test::test(&exec_command, &dir).is_err() {
+                    println!("Some tests failed.");
+                    process::exit(1);
                 }
-                Err(e) => {
-                    println!("{}", &e);
-                    return Err(());
-                }
-            },
+            }
             Commands::Config { sub_command } => match sub_command {
                 ConfigCommand::LangList => {
                     config::print_lang_list(&config);
@@ -118,7 +115,7 @@ fn main() -> Result<(), ()> {
             },
         }
     } else {
-        panic!("No subcommand found. please use \"atc -h\" to see help.");
+        println!("Some tests failed.");
+        process::exit(1);
     }
-    Ok(())
 }
