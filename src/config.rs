@@ -140,5 +140,5 @@ fn data_dir() -> PathBuf {
 
     let proj = ProjectDirs::from("jp", "yoniha", "atcommand").expect("Cannot find data directory.");
 
-    proj.config_dir().to_path_buf()
+    proj.data_dir().to_path_buf()
 }
