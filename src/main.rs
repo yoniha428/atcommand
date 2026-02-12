@@ -115,7 +115,7 @@ fn main() {
             },
         }
     } else {
-        println!("Some tests failed.");
+        println!("Command not found. Use \"atc -h\" to see help.");
         process::exit(1);
     }
 }

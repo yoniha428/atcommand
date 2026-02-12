@@ -130,7 +130,7 @@ fn run_case(
     let mut child = Command::new(exec_command)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .spawn() // コマンドを実行
+        .spawn()
         .expect("Failed to run the code");
     child
         .stdin
