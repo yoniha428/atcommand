@@ -148,7 +148,7 @@ fn fetch_document(url: &str, session: &str) -> scraper::Html {
         .text()
         .expect("Failed to parse request.");
     if !body.contains("ログアウト") && !body.contains("Sign Out") {
-        println!("Not logged in. (Session expired?)");
+        println!("Not logged in. ( Session expired? )");
         std::process::exit(1);
     }
     scraper::Html::parse_document(&body)

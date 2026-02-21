@@ -33,7 +33,7 @@ fn add_without_session_works() {
         .arg("cpp")
         .assert()
         .failure()
-        .stderr(str::contains("session"));
+        .stdout(str::contains("Session"));
 }
 
 #[test]
