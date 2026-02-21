@@ -1,9 +1,9 @@
-pub mod util;
-pub mod contest;
-mod submit;
 mod add;
 mod config;
+pub mod contest;
+mod submit;
 mod test;
+pub mod util;
 
 use clap::{Parser, Subcommand};
 use std::{path::PathBuf, process};
@@ -82,7 +82,7 @@ enum ConfigCommand {
     CookieDir,
 }
 
-pub fn main(){
+pub fn main() {
     let config = config::config();
     let session = config::session().revel_session;
 
@@ -99,7 +99,7 @@ pub fn main(){
                     process::exit(1);
                 }
             }
-            Commands::Submit {path} => {
+            Commands::Submit { path } => {
                 submit::submit(path, &session);
             }
             Commands::Config { sub_command } => match sub_command {

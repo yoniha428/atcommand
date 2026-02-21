@@ -171,7 +171,10 @@ fn run_case(
         .unwrap();
     let output = output;
 
-    if output.split_whitespace().eq(sample_output.split_whitespace()) {
+    if output
+        .split_whitespace()
+        .eq(sample_output.split_whitespace())
+    {
         JudgeResult::Accepted
     } else {
         println!("Wrong answer on case {}", i + 1);
