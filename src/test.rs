@@ -39,8 +39,8 @@ impl PartialOrd for JudgeResult {
 }
 
 /// Run exec_command and input sample cases in dir
-/// Return Ok(testcase_size) if accepted
-/// Return Err(reason) if not accepted
+/// Return Ok(()) if accepted
+/// Return Err(()) if not accepted
 pub fn test(exec_command: &str, dir: &PathBuf) -> Result<(), ()> {
     assert!(
         fs::exists(dir).expect("Failed to check for the existance of the input directory."),
@@ -130,7 +130,7 @@ fn run_case(
     let mut child = Command::new(exec_command)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .spawn() // コマンドを実行
+        .spawn()
         .expect("Failed to run the code");
     child
         .stdin
@@ -171,7 +171,10 @@ fn run_case(
         .unwrap();
     let output = output;
 
-    if output == sample_output {
+    if output
+        .split_whitespace()
+        .eq(sample_output.split_whitespace())
+    {
         JudgeResult::Accepted
     } else {
         println!("Wrong answer on case {}", i + 1);

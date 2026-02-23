@@ -21,7 +21,7 @@ pub fn add_contest(contest_name: &str, path: &PathBuf, session: &str) {
     problems
         .into_iter()
         .for_each(|(problem_name, problem_url): (String, String)| {
-            let (inputs, outputs) = fetch_problem_samples(&problem_url);
+            let (inputs, outputs) = fetch_problem_samples(&problem_url, session);
             let problem_path = contest_path.join(&problem_name);
             let in_path = problem_path.join("in");
             util::ensure_dir(&in_path);
@@ -53,30 +53,10 @@ pub fn add_contest(contest_name: &str, path: &PathBuf, session: &str) {
 
 /// Access to the contest page and fetch problem names
 fn fetch_problem_urls(contest_name: &str, session: &str) -> Vec<(String, String)> {
-    let client = Client::builder()
-        .user_agent("atcommand/0.1 (https://github.com/yoniha428/atcommand)")
-        .build()
-        .expect("Failed to build web cliend.");
-    let body = client
-        .get(format!(
-            "https://atcoder.jp/contests/{}/tasks",
-            contest_name
-        ))
-        // .get("https://atcoder.jp/settings")
-        .header(
-            reqwest::header::COOKIE,
-            format!("REVEL_SESSION={}", session),
-        )
-        .send()
-        .expect("Failed to get contest infomation.")
-        .text()
-        .expect("Failed to parse request.");
-    // println!("{}", &body);
-    assert!(
-        body.contains("ログアウト") || body.contains("Sign Out"),
-        "not logged in (session expired?)"
+    let document = fetch_document(
+        &format!("https://atcoder.jp/contests/{}/tasks", contest_name),
+        session,
     );
-    let document = scraper::Html::parse_document(&body);
 
     let tr_selector = Selector::parse("table tbody tr").unwrap();
     let td_selector = Selector::parse("td").unwrap();
@@ -115,13 +95,8 @@ fn fetch_problem_urls(contest_name: &str, session: &str) -> Vec<(String, String)
         .collect()
 }
 
-fn fetch_problem_samples(url: &str) -> (Vec<String>, Vec<String>) {
-    // 問題ページのテキストを取得してパース
-    let body = reqwest::blocking::get(url)
-        .expect("Failed to get problem infomation.")
-        .text()
-        .expect("Failed to parse request.");
-    let document = scraper::Html::parse_document(&body);
+fn fetch_problem_samples(url: &str, session: &str) -> (Vec<String>, Vec<String>) {
+    let document = fetch_document(url, session);
 
     // 入出力例をフィルター
     let section_selector = Selector::parse("div.part > section").unwrap();
@@ -131,21 +106,21 @@ fn fetch_problem_samples(url: &str) -> (Vec<String>, Vec<String>) {
     let inputs: Vec<String> = elements
         .clone()
         .filter_map(|element| {
-            let h3 = element.select(&h3_selector).next().unwrap().inner_html();
+            let h3 = element.select(&h3_selector).next()?.inner_html();
             if !h3.starts_with("入力例") {
                 return None;
             }
-            let pre = element.select(&pre_selector).next().unwrap().inner_html();
+            let pre = element.select(&pre_selector).next()?.inner_html();
             Some(pre)
         })
         .collect();
     let outputs: Vec<String> = elements
         .filter_map(|element| {
-            let h3 = element.select(&h3_selector).next().unwrap().inner_html();
+            let h3 = element.select(&h3_selector).next()?.inner_html();
             if !h3.starts_with("出力例") {
                 return None;
             }
-            let pre = element.select(&pre_selector).next().unwrap().inner_html();
+            let pre = element.select(&pre_selector).next()?.inner_html();
             Some(pre)
         })
         .collect();
@@ -155,4 +130,26 @@ fn fetch_problem_samples(url: &str) -> (Vec<String>, Vec<String>) {
         "Len of inputs and outputs are not same."
     );
     (inputs, outputs)
+}
+
+fn fetch_document(url: &str, session: &str) -> scraper::Html {
+    let client = Client::builder()
+        .user_agent("atcommand/0.1 (https://github.com/yoniha428/atcommand)")
+        .build()
+        .expect("Failed to build web cliend.");
+    let body = client
+        .get(url)
+        .header(
+            reqwest::header::COOKIE,
+            format!("REVEL_SESSION={}", session),
+        )
+        .send()
+        .expect("Failed to get contest infomation.")
+        .text()
+        .expect("Failed to parse request.");
+    if !body.contains("ログアウト") && !body.contains("Sign Out") {
+        println!("Not logged in. ( Session expired? )");
+        std::process::exit(1);
+    }
+    scraper::Html::parse_document(&body)
 }
