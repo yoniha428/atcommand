@@ -5,27 +5,31 @@ use std::{fs, path::PathBuf, process};
 use crate::contest::ContestInfo;
 
 pub fn submit(path: PathBuf, session: &str) {
+    // コードを取得する
     let code = fs::read_to_string(&path).expect("Failed to read your code.");
+
+    // contest.tomlを取得する
     let info_path = path
         .parent()
         .expect("Directory missing.")
         .parent()
         .expect("Directory missing.")
-        .join("contest.atc.toml");
+        .join("contest.toml");
     if !info_path.exists() {
         println!(
-            "Contest information file (contest.atc.toml) not found. Ensure that your -p option is correct."
+            "Contest information file (contest.toml) not found. Ensure that your -p option is correct."
         );
         process::exit(1);
     }
     let info = fs::read_to_string(info_path).expect("Failed to read contest infomation.");
     let info: ContestInfo =
         toml::from_str(&info).expect("Failed to convert contest information from toml.");
+
+    // WebClientを作り、csrf_tokenを取得する
     let client = Client::builder()
         .user_agent("atcommand/0.1 (https://github.com/yoniha428/atcommand)")
         .build()
-        .expect("Failed to build web cliend.");
-
+        .expect("Failed to build web client.");
     let body = client
         .get(&info.submit_url)
         .header(
@@ -43,8 +47,25 @@ pub fn submit(path: PathBuf, session: &str) {
         .next()
         .and_then(|el| el.value().attr("value"))
         .expect("csrf_token not found.");
+
+    // 問題名(フル)を取得する
+    let short_name = path
+        .parent()
+        .expect("Directory missing")
+        .file_name()
+        .expect("Failed to get file name")
+        .to_string_lossy()
+        .into_owned();
+    let full_name = &info
+        .problem_infos
+        .iter()
+        .find(|problem_info| problem_info.short_name == short_name)
+        .expect("Failed to get problem infomation.")
+        .full_name;
+
+    // パラメータをまとめて送信
     let params = [
-        ("data.TaskScreenName", &info.task_name),
+        ("data.TaskScreenName", full_name),
         ("data.LanguageId", &info.language_id),
         ("sourceCode", &code),
         ("csrf_token", &token.into()),

@@ -19,6 +19,8 @@ fn add_without_session_works() {
         .arg("cpp")
         .arg("-p")
         .arg(&file_dir)
+        .arg("-i")
+        .arg("6017")
         .assert()
         .success();
 
@@ -53,6 +55,8 @@ fn add_lang_works() {
         .arg("cpp")
         .arg("-p")
         .arg(&file_dir)
+        .arg("-i")
+        .arg("6017")
         .assert()
         .success();
 

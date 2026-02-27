@@ -63,6 +63,10 @@ enum ConfigCommand {
         /// Path to your template file (e.g. "./templace/main.cpp")
         #[arg(short, long)]
         path: PathBuf,
+        
+        /// Path to your template file (e.g. "./templace/main.cpp")
+        #[arg(short, long)]
+        id: String,
     },
     /// Delete language.
     DeleteLang {
@@ -90,8 +94,8 @@ pub fn main() {
     if let Some(command) = args.command {
         match command {
             Commands::Add { contest_name, lang } => {
-                let path = config::lang_path(lang, config);
-                add::add_contest(&contest_name, &path, &session);
+                let (path, id) = config::lang_path_id(lang, config);
+                add::add_contest(&contest_name, &path, &session, id);
             }
             Commands::Test { exec_command, dir } => {
                 if test::test(&exec_command, &dir).is_err() {
@@ -106,8 +110,8 @@ pub fn main() {
                 ConfigCommand::LangList => {
                     config::print_lang_list(&config);
                 }
-                ConfigCommand::AddLang { lang, path } => {
-                    let config = config::add_lang(&lang, &path, &config);
+                ConfigCommand::AddLang { lang, path, id } => {
+                    let config = config::add_lang(&lang, &path, &id, &config);
                     config::write_config(&config);
                 }
                 ConfigCommand::DeleteLang { lang } => {

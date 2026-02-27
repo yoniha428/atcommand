@@ -14,7 +14,8 @@ pub struct Config {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Template {
     lang: String,
-    path: String,
+    path: PathBuf,
+    id: String,
     default: bool,
 }
 
@@ -50,7 +51,7 @@ pub fn session() -> Session {
     toml::from_str(&session).expect("Failed to parse config.toml")
 }
 
-pub fn lang_path(lang: Option<String>, config: Config) -> PathBuf {
+pub fn lang_path_id(lang: Option<String>, config: Config) -> (PathBuf, String) {
     let template = match lang {
         Some(lang) => config
             .templates
@@ -63,16 +64,16 @@ pub fn lang_path(lang: Option<String>, config: Config) -> PathBuf {
             .find(|template| template.default)
             .expect("Default language not found."),
     };
-    PathBuf::from(template.path)
+    (template.path, template.id)
 }
 
 pub fn print_lang_list(config: &Config) {
     for t in &config.templates {
-        println!("lang: {}, path: {}", t.lang, t.path);
+        println!("lang: {}, path: {}", t.lang, t.path.to_string_lossy());
     }
 }
 
-pub fn add_lang(lang: &str, path: &Path, config: &Config) -> Config {
+pub fn add_lang(lang: &str, path: &Path, id: &str, config: &Config) -> Config {
     assert_eq!(
         config
             .templates
@@ -82,11 +83,12 @@ pub fn add_lang(lang: &str, path: &Path, config: &Config) -> Config {
         0,
         "Language already exists."
     );
-    let path = path.canonicalize().expect("Path not found");
+    let path = path.canonicalize().expect("Failed to canonicalize path.");
     let mut config = config.clone();
     config.templates.push(Template {
         lang: lang.to_owned(),
-        path: path.to_string_lossy().into(),
+        path,
+        id: id.to_owned(),
         default: false,
     });
     config

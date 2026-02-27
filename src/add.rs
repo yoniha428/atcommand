@@ -1,3 +1,4 @@
+use crate::contest::{ContestInfo, ProblemInfo};
 use crate::util;
 use reqwest::blocking::Client;
 use scraper::Selector;
@@ -7,51 +8,67 @@ use std::{
 };
 
 /// Add contest folder and download sample cases.
-pub fn add_contest(contest_name: &str, path: &PathBuf, session: &str) {
+pub fn add_contest(contest_name: &str, path: &PathBuf, session: &str, language_id: String) {
+    // 問題の名前とURLを取得する
     let problems = fetch_problem_urls(contest_name, session);
 
-    // 入出力例のフォルダやファイルを生成
+    // コンテストのディレクトリのパスを作成する
     let contest_path = format!("./{}", contest_name);
     let contest_path = Path::new(contest_path.as_str());
 
-    if !fs::exists(contest_path).expect("Failed to check for the existence of the test folder.") {
-        fs::create_dir(contest_path).expect("Failed to create output folder.");
-    }
+    // テンプレートのコードを取得する
+    let template_code = fs::read(path).expect("Failed to read template code.");
+    let template_code = String::from_utf8_lossy(&template_code);
 
-    problems
-        .into_iter()
-        .for_each(|(problem_name, problem_url): (String, String)| {
-            let (inputs, outputs) = fetch_problem_samples(&problem_url, session);
-            let problem_path = contest_path.join(&problem_name);
-            let in_path = problem_path.join("in");
-            util::ensure_dir(&in_path);
-            let out_path = problem_path.join("out");
-            util::ensure_dir(&out_path);
+    problems.iter().for_each(|(problem_name, problem_url)| {
+        // 入出力をフェッチする
+        let (inputs, outputs) = fetch_problem_samples(problem_url, session);
 
-            let code_path =
-                problem_path.join(path.file_name().expect("Failed to get path of code."));
-            let template_code = fs::read(path).expect("Failed to read template code.");
-            let template_code = String::from_utf8_lossy(&template_code);
+        // 問題ごとのパスを取得し、入出力のディレクトリを作成する
+        let problem_path = contest_path.join(problem_name);
+        let in_path = problem_path.join("in");
+        util::ensure_dir(&in_path);
+        let out_path = problem_path.join("out");
+        util::ensure_dir(&out_path);
 
-            util::echo(&template_code, &code_path);
+        // テンプレートを書き込む
+        let code_path = problem_path.join(path.file_name().expect("Template file's path is directory."));
+        util::echo(&template_code, &code_path);
 
-            inputs.iter().enumerate().for_each(|(index, input)| {
-                let file_name = (index + 1).to_string() + ".txt";
-                let file_path = &in_path.join(file_name);
-
-                util::echo(input, file_path);
-            });
-
-            outputs.iter().enumerate().for_each(|(index, input)| {
-                let file_name = (index + 1).to_string() + ".txt";
-                let file_path = &out_path.join(file_name);
-
-                util::echo(input, file_path);
-            });
+        // 入出力例を書き込む
+        inputs.iter().enumerate().for_each(|(index, input)| {
+            let file_name = (index + 1).to_string() + ".txt";
+            let file_path = &in_path.join(file_name);
+            util::echo(input, file_path);
         });
+
+        outputs.iter().enumerate().for_each(|(index, input)| {
+            let file_name = (index + 1).to_string() + ".txt";
+            let file_path = &out_path.join(file_name);
+            util::echo(input, file_path);
+        });
+    });
+
+    // contest.tomlを作成する
+    let info = ContestInfo {
+        submit_url: format!("https://atcoder.jp/contests/{}/submit", &contest_name),
+        language_id,
+        problem_infos: problems
+            .iter()
+            .map(|(task_name, url)| ProblemInfo {
+                short_name: task_name.clone(),
+                full_name: url.rsplit('/').next().unwrap_or("").into(),
+            })
+            .collect(),
+    };
+    let info_path = contest_path.join("contest.toml");
+    let toml = toml::to_string_pretty(&info).expect("Failed to parse config to toml.");
+    fs::write(info_path, toml).expect("Failed to write config.toml");
 }
 
 /// Access to the contest page and fetch problem names
+/// Return Vec<(task_name, url)>
+/// task_name is lower-cased (e.g. "a" or "b")
 fn fetch_problem_urls(contest_name: &str, session: &str) -> Vec<(String, String)> {
     let document = fetch_document(
         &format!("https://atcoder.jp/contests/{}/tasks", contest_name),
@@ -136,7 +153,7 @@ fn fetch_document(url: &str, session: &str) -> scraper::Html {
     let client = Client::builder()
         .user_agent("atcommand/0.1 (https://github.com/yoniha428/atcommand)")
         .build()
-        .expect("Failed to build web cliend.");
+        .expect("Failed to build web client.");
     let body = client
         .get(url)
         .header(
