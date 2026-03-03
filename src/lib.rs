@@ -5,14 +5,15 @@ mod submit;
 mod test;
 pub mod util;
 
+use anyhow::{Result};
 use clap::{Parser, Subcommand};
-use std::{path::PathBuf, process};
+use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
     #[command(subcommand)]
-    command: Option<Commands>,
+    command: Commands,
 }
 
 #[derive(Subcommand, Debug)]
@@ -63,7 +64,7 @@ enum ConfigCommand {
         /// Path to your template file (e.g. "./templace/main.cpp")
         #[arg(short, long)]
         path: PathBuf,
-        
+
         /// Path to your template file (e.g. "./templace/main.cpp")
         #[arg(short, long)]
         id: String,
@@ -86,52 +87,46 @@ enum ConfigCommand {
     CookieDir,
 }
 
-pub fn main() {
-    let config = config::config();
-    let session = config::session().revel_session;
+pub fn main() -> Result<()> {
+    let config = config::config()?;
+    let session = config::session()?.revel_session;
 
-    let args = Args::parse();
-    if let Some(command) = args.command {
-        match command {
-            Commands::Add { contest_name, lang } => {
-                let (path, id) = config::lang_path_id(lang, config);
-                add::add_contest(&contest_name, &path, &session, id);
-            }
-            Commands::Test { exec_command, dir } => {
-                if test::test(&exec_command, &dir).is_err() {
-                    println!("Some tests failed.");
-                    process::exit(1);
-                }
-            }
-            Commands::Submit { path } => {
-                submit::submit(path, &session);
-            }
-            Commands::Config { sub_command } => match sub_command {
-                ConfigCommand::LangList => {
-                    config::print_lang_list(&config);
-                }
-                ConfigCommand::AddLang { lang, path, id } => {
-                    let config = config::add_lang(&lang, &path, &id, &config);
-                    config::write_config(&config);
-                }
-                ConfigCommand::DeleteLang { lang } => {
-                    let config = config::delete_lang(&lang, &config);
-                    config::write_config(&config);
-                }
-                ConfigCommand::DefaultLang { lang } => {
-                    let config = config::set_default_lang(&lang, &config);
-                    config::write_config(&config);
-                }
-                ConfigCommand::ConfigDir => {
-                    config::print_config_dir();
-                }
-                ConfigCommand::CookieDir => {
-                    config::print_session_dir();
-                }
-            },
+    let command = Args::parse().command;
+    match command {
+        Commands::Add { contest_name, lang } => {
+            let (path, id) = config::lang_path_id(lang, config)?;
+            add::add_contest(&contest_name, &path, &session, id)?;
         }
-    } else {
-        println!("Command not found. Use \"atc -h\" to see help.");
-        process::exit(1);
+        Commands::Test { exec_command, dir } => {
+            test::test(&exec_command, &dir)?;
+        }
+        Commands::Submit { path } => {
+            submit::submit(path, &session)?;
+        }
+        Commands::Config { sub_command } => match sub_command {
+            ConfigCommand::LangList => {
+                config::print_lang_list(&config);
+            }
+            ConfigCommand::AddLang { lang, path, id } => {
+                let config = config::add_lang(&lang, &path, &id, &config)?;
+                config::write_config(&config)?;
+            }
+            ConfigCommand::DeleteLang { lang } => {
+                let config = config::delete_lang(&lang, &config);
+                config::write_config(&config)?;
+            }
+            ConfigCommand::DefaultLang { lang } => {
+                let config = config::set_default_lang(&lang, &config);
+                config::write_config(&config)?;
+            }
+            ConfigCommand::ConfigDir => {
+                config::print_config_dir()?;
+            }
+            ConfigCommand::CookieDir => {
+                config::print_session_dir()?;
+            }
+        },
     }
+
+    Ok(())
 }

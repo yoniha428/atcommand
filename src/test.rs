@@ -6,6 +6,7 @@ use std::{
     process::{Command, Stdio},
     time::{Duration, Instant},
 };
+use anyhow::{Result, anyhow};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum JudgeResult {
@@ -41,7 +42,7 @@ impl PartialOrd for JudgeResult {
 /// Run exec_command and input sample cases in dir
 /// Return Ok(()) if accepted
 /// Return Err(()) if not accepted
-pub fn test(exec_command: &str, dir: &PathBuf) -> Result<(), ()> {
+pub fn test(exec_command: &str, dir: &PathBuf) -> Result<()> {
     assert!(
         fs::exists(dir).expect("Failed to check for the existance of the input directory."),
         "Directory not found"
@@ -103,16 +104,13 @@ pub fn test(exec_command: &str, dir: &PathBuf) -> Result<(), ()> {
             Ok(())
         }
         JudgeResult::TimeLimitExceeded => {
-            println!("Time limit exceeded.");
-            Err(())
+            Err(anyhow!("Time limit exceeded."))
         }
         JudgeResult::WrongAnswer => {
-            println!("Wrong answer.");
-            Err(())
+            Err(anyhow!("Wrong answer."))
         }
         JudgeResult::RuntimeError => {
-            println!("Runtime error.");
-            Err(())
+            Err(anyhow!("Runtime error."))
         }
     }
 }

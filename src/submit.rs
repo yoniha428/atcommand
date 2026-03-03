@@ -1,25 +1,24 @@
 use reqwest::blocking::Client;
 use scraper::Selector;
-use std::{fs, path::PathBuf, process};
+use anyhow::{Result, anyhow};
+use std::{fs, path::PathBuf};
 
 use crate::contest::ContestInfo;
 
-pub fn submit(path: PathBuf, session: &str) {
+pub fn submit(path: PathBuf, session: &str) -> Result<()> {
     // コードを取得する
     let code = fs::read_to_string(&path).expect("Failed to read your code.");
 
     // contest.tomlを取得する
     let info_path = path
         .parent()
-        .expect("Directory missing.")
-        .parent()
-        .expect("Directory missing.")
+        .and_then(|path| path.parent())
+        .ok_or(anyhow!("Contest folder not found"))?
         .join("contest.toml");
     if !info_path.exists() {
-        println!(
+        return Err(anyhow!(
             "Contest information file (contest.toml) not found. Ensure that your -p option is correct."
-        );
-        process::exit(1);
+        ));
     }
     let info = fs::read_to_string(info_path).expect("Failed to read contest infomation.");
     let info: ContestInfo =
@@ -75,8 +74,9 @@ pub fn submit(path: PathBuf, session: &str) {
         .form(&params)
         .send()
         .expect("Failed to post your code.");
-    if !res.url().path().contains("submissions") {
-        println!("Failed to submit. (Not in contest?)");
-        process::exit(1);
+    if res.url().path().contains("submissions") {
+        Ok(())
+    } else {
+        Err(anyhow!("Failed to submit. (Not in contest?)"))
     }
 }

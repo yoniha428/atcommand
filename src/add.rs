@@ -2,15 +2,16 @@ use crate::contest::{ContestInfo, ProblemInfo};
 use crate::util;
 use reqwest::blocking::Client;
 use scraper::Selector;
+use anyhow::{Result, anyhow};
 use std::{
     fs,
     path::{Path, PathBuf},
 };
 
 /// Add contest folder and download sample cases.
-pub fn add_contest(contest_name: &str, path: &PathBuf, session: &str, language_id: String) {
+pub fn add_contest(contest_name: &str, path: &PathBuf, session: &str, language_id: String) -> Result<()> {
     // 問題の名前とURLを取得する
-    let problems = fetch_problem_urls(contest_name, session);
+    let problems = fetch_problem_urls(contest_name, session)?;
 
     // コンテストのディレクトリのパスを作成する
     let contest_path = format!("./{}", contest_name);
@@ -20,34 +21,34 @@ pub fn add_contest(contest_name: &str, path: &PathBuf, session: &str, language_i
     let template_code = fs::read(path).expect("Failed to read template code.");
     let template_code = String::from_utf8_lossy(&template_code);
 
-    problems.iter().for_each(|(problem_name, problem_url)| {
+    for (problem_name, problem_url) in problems.iter() {
         // 入出力をフェッチする
-        let (inputs, outputs) = fetch_problem_samples(problem_url, session);
+        let (inputs, outputs) = fetch_problem_samples(problem_url, session)?;
 
         // 問題ごとのパスを取得し、入出力のディレクトリを作成する
         let problem_path = contest_path.join(problem_name);
         let in_path = problem_path.join("in");
-        util::ensure_dir(&in_path);
+        util::ensure_dir(&in_path)?;
         let out_path = problem_path.join("out");
-        util::ensure_dir(&out_path);
+        util::ensure_dir(&out_path)?;
 
         // テンプレートを書き込む
         let code_path = problem_path.join(path.file_name().expect("Template file's path is directory."));
-        util::echo(&template_code, &code_path);
+        util::echo(&template_code, &code_path)?;
 
         // 入出力例を書き込む
-        inputs.iter().enumerate().for_each(|(index, input)| {
+        for (index, input) in inputs.iter().enumerate(){
             let file_name = (index + 1).to_string() + ".txt";
             let file_path = &in_path.join(file_name);
-            util::echo(input, file_path);
-        });
+            util::echo(input, file_path)?;
+        }
 
-        outputs.iter().enumerate().for_each(|(index, input)| {
+        for (index, input) in outputs.iter().enumerate() {
             let file_name = (index + 1).to_string() + ".txt";
             let file_path = &out_path.join(file_name);
-            util::echo(input, file_path);
-        });
-    });
+            util::echo(input, file_path)?;
+        }
+    }
 
     // contest.tomlを作成する
     let info = ContestInfo {
@@ -64,22 +65,23 @@ pub fn add_contest(contest_name: &str, path: &PathBuf, session: &str, language_i
     let info_path = contest_path.join("contest.toml");
     let toml = toml::to_string_pretty(&info).expect("Failed to parse config to toml.");
     fs::write(info_path, toml).expect("Failed to write config.toml");
+    Ok(())
 }
 
 /// Access to the contest page and fetch problem names
 /// Return Vec<(task_name, url)>
 /// task_name is lower-cased (e.g. "a" or "b")
-fn fetch_problem_urls(contest_name: &str, session: &str) -> Vec<(String, String)> {
+fn fetch_problem_urls(contest_name: &str, session: &str) -> Result<Vec<(String, String)>> {
     let document = fetch_document(
         &format!("https://atcoder.jp/contests/{}/tasks", contest_name),
         session,
-    );
+    )?;
 
     let tr_selector = Selector::parse("table tbody tr").unwrap();
     let td_selector = Selector::parse("td").unwrap();
     let a_selector = Selector::parse("a").unwrap();
 
-    document
+    let urls = document
         .select(&tr_selector)
         .filter_map(|tr| {
             let tds: Vec<_> = tr.select(&td_selector).collect();
@@ -109,11 +111,12 @@ fn fetch_problem_urls(contest_name: &str, session: &str) -> Vec<(String, String)
 
             Some((label, full_url))
         })
-        .collect()
+        .collect();
+    Ok(urls)
 }
 
-fn fetch_problem_samples(url: &str, session: &str) -> (Vec<String>, Vec<String>) {
-    let document = fetch_document(url, session);
+fn fetch_problem_samples(url: &str, session: &str) -> Result<(Vec<String>, Vec<String>)> {
+    let document = fetch_document(url, session)?;
 
     // 入出力例をフィルター
     let section_selector = Selector::parse("div.part > section").unwrap();
@@ -141,32 +144,30 @@ fn fetch_problem_samples(url: &str, session: &str) -> (Vec<String>, Vec<String>)
             Some(pre)
         })
         .collect();
-    assert_eq!(
-        inputs.len(),
-        outputs.len(),
-        "Len of inputs and outputs are not same."
-    );
-    (inputs, outputs)
+    if inputs.len() == outputs.len() {
+        Ok((inputs, outputs))
+    }
+    else {
+        Err(anyhow!("Length of inputs and outputs are not same."))
+    }
 }
 
-fn fetch_document(url: &str, session: &str) -> scraper::Html {
+fn fetch_document(url: &str, session: &str) -> Result<scraper::Html> {
     let client = Client::builder()
         .user_agent("atcommand/0.1 (https://github.com/yoniha428/atcommand)")
-        .build()
-        .expect("Failed to build web client.");
+        .build()?;
     let body = client
         .get(url)
         .header(
             reqwest::header::COOKIE,
             format!("REVEL_SESSION={}", session),
         )
-        .send()
-        .expect("Failed to get contest infomation.")
-        .text()
-        .expect("Failed to parse request.");
-    if !body.contains("ログアウト") && !body.contains("Sign Out") {
-        println!("Not logged in. ( Session expired? )");
-        std::process::exit(1);
+        .send()?
+        .text()?;
+    if body.contains("ログアウト") || body.contains("Sign Out") {
+        Ok(scraper::Html::parse_document(&body))
     }
-    scraper::Html::parse_document(&body)
+    else{
+        Err(anyhow!("Not logged in (Session expired?)"))
+    }
 }
