@@ -1,13 +1,13 @@
+use anyhow::{Context, Result, anyhow};
 use reqwest::blocking::Client;
 use scraper::Selector;
-use anyhow::{Result, anyhow};
 use std::{fs, path::PathBuf};
 
 use crate::contest::ContestInfo;
 
 pub fn submit(path: PathBuf, session: &str) -> Result<()> {
     // コードを取得する
-    let code = fs::read_to_string(&path).expect("Failed to read your code.");
+    let code = fs::read_to_string(&path)?;
 
     // contest.tomlを取得する
     let info_path = path
@@ -15,14 +15,9 @@ pub fn submit(path: PathBuf, session: &str) -> Result<()> {
         .and_then(|path| path.parent())
         .ok_or(anyhow!("Contest folder not found"))?
         .join("contest.toml");
-    if !info_path.exists() {
-        return Err(anyhow!(
-            "Contest information file (contest.toml) not found. Ensure that your -p option is correct."
-        ));
-    }
-    let info = fs::read_to_string(info_path).expect("Failed to read contest infomation.");
+    let info = fs::read_to_string(info_path).context("contest.toml not found. Check -p option.")?;
     let info: ContestInfo =
-        toml::from_str(&info).expect("Failed to convert contest information from toml.");
+        toml::from_str(&info).context("Failed to convert contest information from toml.")?;
 
     // WebClientを作り、csrf_tokenを取得する
     let client = Client::builder()
@@ -36,30 +31,31 @@ pub fn submit(path: PathBuf, session: &str) -> Result<()> {
             format!("REVEL_SESSION={}", session),
         )
         .send()
-        .expect("Failed to get contest infomation.")
+        .context("Failed to open submission page.")?
         .text()
-        .expect("Failed to parse request.");
+        .context("Failed to parse submission page to text")?;
     let html = scraper::Html::parse_document(&body);
     let selector = Selector::parse(r#"input[name="csrf_token"]"#).unwrap();
     let token = html
         .select(&selector)
         .next()
         .and_then(|el| el.value().attr("value"))
-        .expect("csrf_token not found.");
+        .context("csrf_token not found.")?;
+    println!("{}", token);
 
     // 問題名(フル)を取得する
     let short_name = path
         .parent()
-        .expect("Directory missing")
+        .context("Cannot open the parent directory. Check -p option.")?
         .file_name()
-        .expect("Failed to get file name")
+        .ok_or(anyhow!("Directory name not found. Check -p option"))?
         .to_string_lossy()
         .into_owned();
     let full_name = &info
         .problem_infos
         .iter()
         .find(|problem_info| problem_info.short_name == short_name)
-        .expect("Failed to get problem infomation.")
+        .context("contest.toml does not have the infomation of the problem.")?
         .full_name;
 
     // パラメータをまとめて送信
@@ -72,9 +68,15 @@ pub fn submit(path: PathBuf, session: &str) -> Result<()> {
     let res = client
         .post(&info.submit_url)
         .form(&params)
+        .header(
+            reqwest::header::COOKIE,
+            format!("REVEL_SESSION={}", session),
+        )
         .send()
-        .expect("Failed to post your code.");
+        .context("Failed to post your code.")?;
+
     if res.url().path().contains("submissions") {
+        open::that(res.url().path())?;
         Ok(())
     } else {
         Err(anyhow!("Failed to submit. (Not in contest?)"))
