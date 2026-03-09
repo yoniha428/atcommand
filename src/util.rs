@@ -11,7 +11,7 @@ pub fn echo(s: &str, path: &Path) -> Result<()> {
     Ok(())
 }
 
-pub fn ensure_dir<P: AsRef<Path>>(path: P) -> Result<()>{
+pub fn ensure_dir<P: AsRef<Path>>(path: P) -> Result<()> {
     // ディレクトリを作る（存在していてもOK）
     let path = path.as_ref();
     fs::create_dir_all(path)?;

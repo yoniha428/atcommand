@@ -1,15 +1,20 @@
 use crate::contest::{ContestInfo, ProblemInfo};
 use crate::util;
+use anyhow::{Result, anyhow};
 use reqwest::blocking::Client;
 use scraper::Selector;
-use anyhow::{Result, anyhow};
 use std::{
     fs,
     path::{Path, PathBuf},
 };
 
 /// Add contest folder and download sample cases.
-pub fn add_contest(contest_name: &str, path: &PathBuf, session: &str, language_id: String) -> Result<()> {
+pub fn add_contest(
+    contest_name: &str,
+    path: &PathBuf,
+    session: &str,
+    language_id: String,
+) -> Result<()> {
     // 問題の名前とURLを取得する
     let problems = fetch_problem_urls(contest_name, session)?;
 
@@ -33,11 +38,14 @@ pub fn add_contest(contest_name: &str, path: &PathBuf, session: &str, language_i
         util::ensure_dir(&out_path)?;
 
         // テンプレートを書き込む
-        let code_path = problem_path.join(path.file_name().expect("Template file's path is directory."));
+        let code_path = problem_path.join(
+            path.file_name()
+                .expect("Template file's path is directory."),
+        );
         util::echo(&template_code, &code_path)?;
 
         // 入出力例を書き込む
-        for (index, input) in inputs.iter().enumerate(){
+        for (index, input) in inputs.iter().enumerate() {
             let file_name = (index + 1).to_string() + ".txt";
             let file_path = &in_path.join(file_name);
             util::echo(input, file_path)?;
@@ -146,8 +154,7 @@ fn fetch_problem_samples(url: &str, session: &str) -> Result<(Vec<String>, Vec<S
         .collect();
     if inputs.len() == outputs.len() {
         Ok((inputs, outputs))
-    }
-    else {
+    } else {
         Err(anyhow!("Length of inputs and outputs are not same."))
     }
 }
@@ -166,8 +173,7 @@ fn fetch_document(url: &str, session: &str) -> Result<scraper::Html> {
         .text()?;
     if body.contains("ログアウト") || body.contains("Sign Out") {
         Ok(scraper::Html::parse_document(&body))
-    }
-    else{
+    } else {
         Err(anyhow!("Not logged in (Session expired?)"))
     }
 }

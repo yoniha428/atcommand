@@ -119,7 +119,7 @@ pub fn print_config_dir() -> Result<()> {
     Ok(())
 }
 
-pub fn print_session_dir() -> Result<()>{
+pub fn print_session_dir() -> Result<()> {
     let path = data_dir()?.join("session.toml");
     println!("{}", path.to_string_lossy().into_owned());
     Ok(())

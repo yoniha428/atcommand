@@ -1,3 +1,4 @@
+use anyhow::{Result, anyhow};
 use std::{
     cmp::Ordering,
     fs,
@@ -6,7 +7,6 @@ use std::{
     process::{Command, Stdio},
     time::{Duration, Instant},
 };
-use anyhow::{Result, anyhow};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum JudgeResult {
@@ -103,15 +103,9 @@ pub fn test(exec_command: &str, dir: &PathBuf) -> Result<()> {
             println!("Accepted! tested {} cases", sample_ios.len());
             Ok(())
         }
-        JudgeResult::TimeLimitExceeded => {
-            Err(anyhow!("Time limit exceeded."))
-        }
-        JudgeResult::WrongAnswer => {
-            Err(anyhow!("Wrong answer."))
-        }
-        JudgeResult::RuntimeError => {
-            Err(anyhow!("Runtime error."))
-        }
+        JudgeResult::TimeLimitExceeded => Err(anyhow!("Time limit exceeded.")),
+        JudgeResult::WrongAnswer => Err(anyhow!("Wrong answer.")),
+        JudgeResult::RuntimeError => Err(anyhow!("Runtime error.")),
     }
 }
 

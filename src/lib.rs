@@ -5,7 +5,7 @@ mod submit;
 mod test;
 pub mod util;
 
-use anyhow::{Result};
+use anyhow::Result;
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
