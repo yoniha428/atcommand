@@ -1,3 +1,4 @@
+use anyhow::{Result, anyhow};
 use std::{
     cmp::Ordering,
     fs,
@@ -41,7 +42,7 @@ impl PartialOrd for JudgeResult {
 /// Run exec_command and input sample cases in dir
 /// Return Ok(()) if accepted
 /// Return Err(()) if not accepted
-pub fn test(exec_command: &str, dir: &PathBuf) -> Result<(), ()> {
+pub fn test(exec_command: &str, dir: &PathBuf) -> Result<()> {
     assert!(
         fs::exists(dir).expect("Failed to check for the existance of the input directory."),
         "Directory not found"
@@ -102,18 +103,9 @@ pub fn test(exec_command: &str, dir: &PathBuf) -> Result<(), ()> {
             println!("Accepted! tested {} cases", sample_ios.len());
             Ok(())
         }
-        JudgeResult::TimeLimitExceeded => {
-            println!("Time limit exceeded.");
-            Err(())
-        }
-        JudgeResult::WrongAnswer => {
-            println!("Wrong answer.");
-            Err(())
-        }
-        JudgeResult::RuntimeError => {
-            println!("Runtime error.");
-            Err(())
-        }
+        JudgeResult::TimeLimitExceeded => Err(anyhow!("Time limit exceeded.")),
+        JudgeResult::WrongAnswer => Err(anyhow!("Wrong answer.")),
+        JudgeResult::RuntimeError => Err(anyhow!("Runtime error.")),
     }
 }
 

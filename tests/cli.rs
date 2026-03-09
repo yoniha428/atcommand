@@ -1,14 +1,15 @@
+use anyhow::Result;
 use assert_cmd::cargo;
 use atcommand::util;
 use predicates::str;
 
 #[test]
-fn add_without_session_works() {
+fn add_without_session_works() -> Result<()> {
     let config_dir = tempfile::tempdir().unwrap();
     let data_dir = tempfile::tempdir().unwrap();
     let work_dir = tempfile::tempdir().unwrap();
     let file_dir = work_dir.path().join("main.cpp");
-    util::echo("#include <iostream>\n", &file_dir);
+    util::echo("#include <iostream>\n", &file_dir)?;
 
     cargo::cargo_bin_cmd!("atc")
         .env("ATCOMMAND_CONFIG_DIR", config_dir.path())
@@ -19,6 +20,8 @@ fn add_without_session_works() {
         .arg("cpp")
         .arg("-p")
         .arg(&file_dir)
+        .arg("-i")
+        .arg("6017")
         .assert()
         .success();
 
@@ -33,16 +36,17 @@ fn add_without_session_works() {
         .arg("cpp")
         .assert()
         .failure()
-        .stdout(str::contains("Session"));
+        .stderr(str::contains("Session"));
+    Ok(())
 }
 
 #[test]
-fn add_lang_works() {
+fn add_lang_works() -> Result<()> {
     let config_dir = tempfile::tempdir().unwrap();
     let data_dir = tempfile::tempdir().unwrap();
     let work_dir = tempfile::tempdir().unwrap();
     let file_dir = work_dir.path().join("main.cpp");
-    util::echo("#include <iostream>\n", &file_dir);
+    util::echo("#include <iostream>\n", &file_dir)?;
 
     cargo::cargo_bin_cmd!("atc")
         .env("ATCOMMAND_CONFIG_DIR", config_dir.path())
@@ -53,6 +57,8 @@ fn add_lang_works() {
         .arg("cpp")
         .arg("-p")
         .arg(&file_dir)
+        .arg("-i")
+        .arg("6017")
         .assert()
         .success();
 
@@ -64,4 +70,5 @@ fn add_lang_works() {
         .assert()
         .success()
         .stdout(str::contains("cpp"));
+    Ok(())
 }
