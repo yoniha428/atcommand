@@ -41,7 +41,6 @@ pub fn submit(path: PathBuf, session: &str) -> Result<()> {
         .next()
         .and_then(|el| el.value().attr("value"))
         .context("csrf_token not found.")?;
-    println!("{}", token);
 
     // 問題名(フル)を取得する
     let short_name = path
@@ -75,8 +74,9 @@ pub fn submit(path: PathBuf, session: &str) -> Result<()> {
         .send()
         .context("Failed to post your code.")?;
 
-    if res.url().path().contains("submissions") {
-        open::that(res.url().path())?;
+    let url = res.url().as_str();
+    if url.contains("submissions") {
+        open::that(url)?;
         Ok(())
     } else {
         Err(anyhow!("Failed to submit. (Not in contest?)"))
