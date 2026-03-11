@@ -1,5 +1,5 @@
 use crate::util;
-use anyhow::{Result, anyhow};
+use anyhow::{Result, anyhow, ensure};
 use directories::ProjectDirs;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -58,7 +58,10 @@ pub fn lang_path_id(lang: Option<String>, config: Config) -> Result<(PathBuf, St
             .templates
             .into_iter()
             .find(|template| template.lang == lang)
-            .ok_or(anyhow!("The specified language does not exist."))?,
+            .ok_or(anyhow!(
+                r#"Template with language: "{}" does not exist."#,
+                lang
+            ))?,
         None => config
             .templates
             .into_iter()
@@ -71,23 +74,35 @@ pub fn lang_path_id(lang: Option<String>, config: Config) -> Result<(PathBuf, St
 }
 
 pub fn print_lang_list(config: &Config) {
-    for t in &config.templates {
-        println!("lang: {}, path: {}", t.lang, t.path.to_string_lossy());
+    for Template {
+        lang,
+        path,
+        id,
+        default,
+    } in &config.templates
+    {
+        println!(
+            "lang: {}, path: {}, id: {}, default: {}",
+            lang,
+            path.to_string_lossy(),
+            id,
+            default
+        );
     }
 }
 
 pub fn add_lang(lang: &str, path: &Path, id: &str, config: &Config) -> Result<Config> {
-    if config
-        .templates
-        .iter()
-        .filter(|template| template.lang == lang)
-        .count()
-        > 0
-    {
-        return Err(anyhow!(
-            r#"Language already exists. Delete it with "atc config delete-lang -l <LANGUAGE>" or change language name."#
-        ));
-    }
+    ensure!(
+        config
+            .templates
+            .iter()
+            .filter(|template| template.lang == lang)
+            .count()
+            == 0,
+        r#"Language already exists. Delete it with "atc config delete-lang -l {}" or change language name."#,
+        lang
+    );
+
     let path = path.canonicalize()?;
     let mut config = config.clone();
     config.templates.push(Template {
