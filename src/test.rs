@@ -1,4 +1,4 @@
-use anyhow::{Result, anyhow};
+use anyhow::{Context, Result, anyhow, ensure};
 use std::{
     cmp::Ordering,
     fs,
@@ -43,20 +43,11 @@ impl PartialOrd for JudgeResult {
 /// Return Ok(()) if accepted
 /// Return Err(()) if not accepted
 pub fn test(exec_command: &str, dir: &PathBuf) -> Result<()> {
-    assert!(
-        fs::exists(dir).expect("Failed to check for the existance of the input directory."),
-        "Directory not found"
-    );
+    ensure!(fs::exists(dir)?, "Problem directory not found");
     let in_dir = dir.join("in");
     let out_dir = dir.join("out");
-    assert!(
-        fs::exists(&in_dir).expect("Failed to check for the existance of the input directory."),
-        "Input directory not found"
-    );
-    assert!(
-        fs::exists(&out_dir).expect("Failed to check for the existance of the output directory."),
-        "Output directory not found"
-    );
+    ensure!(fs::exists(&in_dir)?, "Input directory not found");
+    ensure!(fs::exists(&out_dir)?, "Output directory not found");
 
     let mut sample_ios: Vec<(String, String)> = vec![];
 
@@ -64,40 +55,39 @@ pub fn test(exec_command: &str, dir: &PathBuf) -> Result<()> {
         let file_name = format!("{}.txt", i);
         let in_dir_i = in_dir.join(&file_name);
         let out_dir_i = out_dir.join(&file_name);
-        if !fs::exists(&in_dir_i).expect("Failed to check for the existance of the input file.") {
-            if i == 1 {
-                panic!("No samples found.");
-            }
+        if !fs::exists(&in_dir_i)? {
+            ensure!(i != 1, "No samples found.");
             break;
         }
-        assert!(
-            fs::exists(&out_dir_i).expect("Failed to check for the existance of the output file."),
-            "Number of inputs and outputs are not same."
+
+        // i番目の入力ファイルがあるので、出力ファイルもある必要がある
+        ensure!(
+            fs::exists(&out_dir_i)?,
+            r#"Input file "{}" exists, but output file "{}" does not exists."#,
+            in_dir_i.to_string_lossy(),
+            out_dir_i.to_string_lossy(),
         );
         sample_ios.push((
-            String::from_utf8_lossy(&fs::read(&in_dir_i).expect("Failed to read input file."))
-                .into_owned(),
-            String::from_utf8_lossy(&fs::read(&out_dir_i).expect("Failed to read output file."))
-                .into_owned(),
+            String::from_utf8_lossy(&fs::read(&in_dir_i)?).into_owned(),
+            String::from_utf8_lossy(&fs::read(&out_dir_i)?).into_owned(),
         ));
     }
     let sample_ios = sample_ios;
 
-    let result = sample_ios
-        .iter()
-        .enumerate()
-        .map(|(i, (sample_input, sample_output))| {
-            run_case(
+    let result = sample_ios.iter().enumerate().try_fold(
+        JudgeResult::Accepted,
+        |acc, (i, (input, output))| -> Result<JudgeResult> {
+            let r = run_case(
                 exec_command,
                 Duration::from_millis(2000),
                 i,
                 sample_ios.len(),
-                sample_input,
-                sample_output,
-            )
-        })
-        .max()
-        .unwrap_or(JudgeResult::Accepted);
+                input,
+                output,
+            )?;
+            Ok(acc.max(r))
+        },
+    )?;
     match result {
         JudgeResult::Accepted => {
             println!("Accepted! tested {} cases", sample_ios.len());
@@ -116,39 +106,45 @@ fn run_case(
     size: usize,
     sample_input: &str,
     sample_output: &str,
-) -> JudgeResult {
+) -> Result<JudgeResult> {
     println!("Running case {} / {} ...", i + 1, size);
 
-    let mut child = Command::new(exec_command)
+    let exec_command: Vec<_> = exec_command.split_whitespace().collect();
+    let (command, args) = exec_command
+        .split_first()
+        .context("-e option is not given.")?;
+
+    let mut child = Command::new(command)
+        .args(args)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()
-        .expect("Failed to run the code");
+        .context("Failed to run the code")?;
     child
         .stdin
         .as_mut()
-        .expect("Failed to open stdin")
+        .context("Failed to open stdin")?
         .write_all(sample_input.as_bytes())
-        .expect("Failed to write sample input to stdin");
+        .context("Failed to write sample input to stdin")?;
     let start = Instant::now();
 
     loop {
-        if let Some(status) = child.try_wait().unwrap() {
+        if let Some(status) = child.try_wait()? {
             if !status.success() {
                 println!("Runtime error on case {}.", i + 1);
                 println!("input:");
                 println!("{}", sample_input);
-                return JudgeResult::RuntimeError;
+                return Ok(JudgeResult::RuntimeError);
             }
             break;
         }
 
         if start.elapsed() > tl {
-            let _ = child.kill();
+            child.kill()?;
             println!("Time limit exceeded on case {}", i + 1);
             println!("input:");
             println!("{}", sample_input);
-            return JudgeResult::TimeLimitExceeded;
+            return Ok(JudgeResult::TimeLimitExceeded);
         }
 
         std::thread::sleep(Duration::from_millis(1));
@@ -157,17 +153,15 @@ fn run_case(
     let mut output = String::new();
     child
         .stdout
-        .take()
-        .unwrap()
-        .read_to_string(&mut output)
-        .unwrap();
+        .context("Failed to open stdout")?
+        .read_to_string(&mut output)?;
     let output = output;
 
     if output
         .split_whitespace()
         .eq(sample_output.split_whitespace())
     {
-        JudgeResult::Accepted
+        Ok(JudgeResult::Accepted)
     } else {
         println!("Wrong answer on case {}", i + 1);
         println!("input:");
@@ -176,6 +170,6 @@ fn run_case(
         println!("{}", sample_output);
         println!("your output:");
         println!("{}", output);
-        JudgeResult::WrongAnswer
+        Ok(JudgeResult::WrongAnswer)
     }
 }
