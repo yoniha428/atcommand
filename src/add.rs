@@ -10,17 +10,20 @@ use std::{
 
 /// Add contest folder and download sample cases.
 pub fn add_contest(
+    base_url: &str,
     contest_name: &str,
     path: &PathBuf,
     session: &str,
-    language_id: String,
+    language_id: &str,
 ) -> Result<()> {
+    dbg!(std::env::current_dir()?);
     // 問題の名前とURLを取得する
-    let problems = fetch_problem_urls(contest_name, session)?;
+    let problems = fetch_problem_urls(base_url, contest_name, session)?;
 
     // コンテストのディレクトリのパスを作成する
     let contest_path = format!("./{}", contest_name);
-    let contest_path = Path::new(contest_path.as_str());
+    let contest_path = Path::new(&contest_path);
+    util::ensure_dir(contest_path)?;
 
     // テンプレートのコードを取得する
     let template_code = fs::read(path).expect("Failed to read template code.");
@@ -60,8 +63,8 @@ pub fn add_contest(
 
     // contest.tomlを作成する
     let info = ContestInfo {
-        submit_url: format!("https://atcoder.jp/contests/{}/submit", &contest_name),
-        language_id,
+        submit_url: format!("{}/{}/submit", base_url, contest_name),
+        language_id: language_id.to_owned(),
         problem_infos: problems
             .iter()
             .map(|(task_name, url)| ProblemInfo {
@@ -79,9 +82,13 @@ pub fn add_contest(
 /// Access to the contest page and fetch problem names
 /// Return Vec<(task_name, url)>
 /// task_name is lower-cased (e.g. "a" or "b")
-fn fetch_problem_urls(contest_name: &str, session: &str) -> Result<Vec<(String, String)>> {
+fn fetch_problem_urls(
+    base_url: &str,
+    contest_name: &str,
+    session: &str,
+) -> Result<Vec<(String, String)>> {
     let document = fetch_document(
-        &format!("https://atcoder.jp/contests/{}/tasks", contest_name),
+        &format!("{}/contests/{}/tasks", base_url, contest_name),
         session,
     )?;
 
@@ -115,7 +122,7 @@ fn fetch_problem_urls(contest_name: &str, session: &str) -> Result<Vec<(String, 
                 .attr("href")
                 .expect("Failed to see url of problem");
 
-            let full_url = format!("https://atcoder.jp{}", href);
+            let full_url = format!("{}{}", base_url, href);
 
             Some((label, full_url))
         })
@@ -163,6 +170,7 @@ fn fetch_document(url: &str, session: &str) -> Result<scraper::Html> {
     let client = Client::builder()
         .user_agent("atcommand/0.1 (https://github.com/yoniha428/atcommand)")
         .build()?;
+    dbg!(url);
     let body = client
         .get(url)
         .header(
@@ -175,5 +183,43 @@ fn fetch_document(url: &str, session: &str) -> Result<scraper::Html> {
         Ok(scraper::Html::parse_document(&body))
     } else {
         Err(anyhow!("Not logged in (Session expired?)"))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::util;
+    use httpmock::{Mock, prelude::MockServer};
+    use std::env;
+
+    fn mock(server: &MockServer) -> Mock<'_> {
+        server.mock(|when, then| {
+            when.method("GET").path("/contests/abc001/tasks");
+            then.status(200)
+                .header("content-type", "text/html; charset=UTF-8")
+                // TODO: bodyをfixtureから取る
+                .body("Sign Out");
+        })
+    }
+    #[test]
+    fn add_contest_works() -> Result<()> {
+        let server = MockServer::start();
+        let mock = mock(&server);
+        let working_dir = tempfile::tempdir()?;
+        env::set_current_dir(working_dir.path())?;
+        let template_dir = working_dir.path().join("template.txt");
+        util::echo("", &template_dir)?;
+        assert!(fs::exists(&template_dir)?);
+        add_contest(
+            &server.base_url(),
+            "abc001",
+            &template_dir.to_path_buf(),
+            // TODO: sessionをenvから取る
+            "",
+            "6017",
+        )?;
+        mock.assert();
+        Ok(())
     }
 }

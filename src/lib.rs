@@ -87,6 +87,8 @@ enum ConfigCommand {
     CookieDir,
 }
 
+const ATCODER_BASE_URL: &str = "https://atcoder.jp";
+
 pub fn main() -> Result<()> {
     let config = config::config()?;
     let session = config::session()?.revel_session;
@@ -95,7 +97,7 @@ pub fn main() -> Result<()> {
     match command {
         Commands::Add { contest_name, lang } => {
             let (path, id) = config::lang_path_id(lang, config)?;
-            add::add_contest(&contest_name, &path, &session, id)?;
+            add::add_contest(ATCODER_BASE_URL, &contest_name, &path, &session, &id)?;
         }
         Commands::Test { exec_command, dir } => {
             test::test(&exec_command, &dir)?;
