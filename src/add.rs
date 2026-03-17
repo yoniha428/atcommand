@@ -1,11 +1,13 @@
 use crate::contest::{ContestInfo, ProblemInfo};
 use crate::util;
-use anyhow::{Result, anyhow};
+use anyhow::{Context, Result, anyhow, ensure, bail};
 use reqwest::blocking::Client;
 use scraper::Selector;
 use std::{
     fs,
     path::{Path, PathBuf},
+    time::Duration,
+    thread
 };
 
 /// Add contest folder and download sample cases.
@@ -16,17 +18,21 @@ pub fn add_contest(
     session: &str,
     language_id: &str,
 ) -> Result<()> {
-    dbg!(std::env::current_dir()?);
     // 問題の名前とURLを取得する
     let problems = fetch_problem_urls(base_url, contest_name, session)?;
 
     // コンテストのディレクトリのパスを作成する
     let contest_path = format!("./{}", contest_name);
     let contest_path = Path::new(&contest_path);
+
+    // もうあるならエラー
+    ensure!(!contest_path.exists(), "Directory {} is already exists.", contest_path.to_string_lossy());
+
+    // ディレクトリ作成
     util::ensure_dir(contest_path)?;
 
     // テンプレートのコードを取得する
-    let template_code = fs::read(path).expect("Failed to read template code.");
+    let template_code = fs::read(path).with_context(|| format!("Failed to read template code from {}", path.to_string_lossy()))?;
     let template_code = String::from_utf8_lossy(&template_code);
 
     for (problem_name, problem_url) in problems.iter() {
@@ -43,7 +49,7 @@ pub fn add_contest(
         // テンプレートを書き込む
         let code_path = problem_path.join(
             path.file_name()
-                .expect("Template file's path is directory."),
+                .context("Template file's path is a directory.")?,
         );
         util::echo(&template_code, &code_path)?;
 
@@ -74,8 +80,8 @@ pub fn add_contest(
             .collect(),
     };
     let info_path = contest_path.join("contest.toml");
-    let toml = toml::to_string_pretty(&info).expect("Failed to parse config to toml.");
-    fs::write(info_path, toml).expect("Failed to write config.toml");
+    let toml = toml::to_string_pretty(&info).context("Failed to parse config to toml.")?;
+    fs::write(&info_path, toml).with_context(|| format!("Failed to write config.toml to {}", info_path.to_string_lossy()))?;
     Ok(())
 }
 
@@ -91,6 +97,10 @@ fn fetch_problem_urls(
         &format!("{}/contests/{}/tasks", base_url, contest_name),
         session,
     )?;
+    let text = document.html();
+    if !(text.contains("Sign Out") || text.contains("ログアウト")) {
+        println!("Not logged in. (Session expired?)");
+    }
 
     let tr_selector = Selector::parse("table tbody tr").unwrap();
     let td_selector = Selector::parse("td").unwrap();
@@ -107,20 +117,17 @@ fn fetch_problem_urls(
             // 1列目: 問題記号 (A, B, C...)
             let label = tds[0]
                 .select(&a_selector)
-                .next()
-                .expect("Failed to parse problem name")
+                .next()?
                 .inner_html()
                 .to_ascii_lowercase();
 
             // 2列目: タイトル + URL
             let a = tds[1]
                 .select(&a_selector)
-                .next()
-                .expect("Failed to see url of problem");
+                .next()?;
             let href = a
                 .value()
-                .attr("href")
-                .expect("Failed to see url of problem");
+                .attr("href")?;
 
             let full_url = format!("{}{}", base_url, href);
 
@@ -170,20 +177,24 @@ fn fetch_document(url: &str, session: &str) -> Result<scraper::Html> {
     let client = Client::builder()
         .user_agent("atcommand/0.1 (https://github.com/yoniha428/atcommand)")
         .build()?;
-    dbg!(url);
-    let body = client
+    for i in 0..5 {
+        let response = client
         .get(url)
         .header(
             reqwest::header::COOKIE,
             format!("REVEL_SESSION={}", session),
         )
-        .send()?
-        .text()?;
-    if body.contains("ログアウト") || body.contains("Sign Out") {
-        Ok(scraper::Html::parse_document(&body))
-    } else {
-        Err(anyhow!("Not logged in (Session expired?)"))
+        .send()?;
+        if response.status().is_success() {
+            let body = response.text()?;
+            return Ok(scraper::Html::parse_document(&body));
+        }
+        // ここにいる時点でエラーが出ている
+        // 429以外ならエラー
+        ensure!(response.status() == 429, "Failed to fetch URL {}. Status is {}, body is\n{}", &url, response.status(), response.text()?);
+        thread::sleep(Duration::from_millis(300 * (1 << i)));
     }
+    bail!("Failed to fetch {} after retries.", &url);
 }
 
 #[cfg(test)]
