@@ -1,13 +1,13 @@
 use crate::contest::{ContestInfo, ProblemInfo};
 use crate::util;
-use anyhow::{Context, Result, anyhow, ensure, bail};
+use anyhow::{Context, Result, anyhow, bail, ensure};
 use reqwest::blocking::Client;
 use scraper::Selector;
 use std::{
     fs,
     path::{Path, PathBuf},
+    thread,
     time::Duration,
-    thread
 };
 
 /// Add contest folder and download sample cases.
@@ -26,13 +26,22 @@ pub fn add_contest(
     let contest_path = Path::new(&contest_path);
 
     // もうあるならエラー
-    ensure!(!contest_path.exists(), "Directory {} is already exists.", contest_path.to_string_lossy());
+    ensure!(
+        !contest_path.exists(),
+        "Directory {} is already exists.",
+        contest_path.to_string_lossy()
+    );
 
     // ディレクトリ作成
     util::ensure_dir(contest_path)?;
 
     // テンプレートのコードを取得する
-    let template_code = fs::read(path).with_context(|| format!("Failed to read template code from {}", path.to_string_lossy()))?;
+    let template_code = fs::read(path).with_context(|| {
+        format!(
+            "Failed to read template code from {}",
+            path.to_string_lossy()
+        )
+    })?;
     let template_code = String::from_utf8_lossy(&template_code);
 
     for (problem_name, problem_url) in problems.iter() {
@@ -81,7 +90,12 @@ pub fn add_contest(
     };
     let info_path = contest_path.join("contest.toml");
     let toml = toml::to_string_pretty(&info).context("Failed to parse config to toml.")?;
-    fs::write(&info_path, toml).with_context(|| format!("Failed to write config.toml to {}", info_path.to_string_lossy()))?;
+    fs::write(&info_path, toml).with_context(|| {
+        format!(
+            "Failed to write config.toml to {}",
+            info_path.to_string_lossy()
+        )
+    })?;
     Ok(())
 }
 
@@ -99,7 +113,7 @@ fn fetch_problem_urls(
     )?;
     let text = document.html();
     if !(text.contains("Sign Out") || text.contains("ログアウト")) {
-        println!("Not logged in. (Session expired?)");
+        eprintln!("Not logged in. (Session expired?)");
     }
 
     let tr_selector = Selector::parse("table tbody tr").unwrap();
@@ -122,12 +136,8 @@ fn fetch_problem_urls(
                 .to_ascii_lowercase();
 
             // 2列目: タイトル + URL
-            let a = tds[1]
-                .select(&a_selector)
-                .next()?;
-            let href = a
-                .value()
-                .attr("href")?;
+            let a = tds[1].select(&a_selector).next()?;
+            let href = a.value().attr("href")?;
 
             let full_url = format!("{}{}", base_url, href);
 
@@ -179,19 +189,25 @@ fn fetch_document(url: &str, session: &str) -> Result<scraper::Html> {
         .build()?;
     for i in 0..5 {
         let response = client
-        .get(url)
-        .header(
-            reqwest::header::COOKIE,
-            format!("REVEL_SESSION={}", session),
-        )
-        .send()?;
+            .get(url)
+            .header(
+                reqwest::header::COOKIE,
+                format!("REVEL_SESSION={}", session),
+            )
+            .send()?;
         if response.status().is_success() {
             let body = response.text()?;
             return Ok(scraper::Html::parse_document(&body));
         }
         // ここにいる時点でエラーが出ている
         // 429以外ならエラー
-        ensure!(response.status() == 429, "Failed to fetch URL {}. Status is {}, body is\n{}", &url, response.status(), response.text()?);
+        ensure!(
+            response.status() == 429,
+            "Failed to fetch URL {}. Status is {}, body is\n{}",
+            &url,
+            response.status(),
+            response.text()?
+        );
         thread::sleep(Duration::from_millis(300 * (1 << i)));
     }
     bail!("Failed to fetch {} after retries.", &url);
