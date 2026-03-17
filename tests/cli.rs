@@ -35,8 +35,9 @@ fn add_without_session_works() -> Result<()> {
         .arg("-l")
         .arg("cpp")
         .assert()
-        .failure()
+        .success()
         .stderr(str::contains("Session"));
+    // TODO: addできる仕様に変更したのでディレクトリやファイルの存在を確認する
     Ok(())
 }
 
