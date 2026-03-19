@@ -78,7 +78,7 @@ pub fn add_contest(
 
     // contest.tomlを作成する
     let info = ContestInfo {
-        submit_url: format!("{}/{}/submit", base_url, contest_name),
+        submit_url: format!("{}/contests/{}/submit", base_url, contest_name),
         language_id: language_id.to_owned(),
         problem_infos: problems
             .iter()
