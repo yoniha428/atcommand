@@ -24,17 +24,21 @@ pub fn submit(path: PathBuf, session: &str) -> Result<()> {
         .user_agent("atcommand/0.1 (https://github.com/yoniha428/atcommand)")
         .build()
         .expect("Failed to build web client.");
-    let body = client
+    let res = client
         .get(&info.submit_url)
         .header(
             reqwest::header::COOKIE,
             format!("REVEL_SESSION={}", session),
         )
         .send()
-        .context("Failed to open submission page.")?
-        .text()
-        .context("Failed to parse submission page to text")?;
-    let html = scraper::Html::parse_document(&body);
+        .context("Failed to open submission page.")?;
+
+    if res.url().as_str().contains("login") {
+        bail!(r#"You need to login to submit. See `atc config cookie-dir`"#);
+    }
+
+    let text = res.text()?;
+    let html = scraper::Html::parse_document(&text);
     let selector = Selector::parse(r#"input[name="csrf_token"]"#).unwrap();
     let token = html
         .select(&selector)
