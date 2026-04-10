@@ -1,4 +1,4 @@
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Context, Result, anyhow, bail};
 use reqwest::blocking::Client;
 use scraper::Selector;
 use std::{fs, path::PathBuf};
@@ -24,17 +24,21 @@ pub fn submit(path: PathBuf, session: &str) -> Result<()> {
         .user_agent("atcommand/0.1 (https://github.com/yoniha428/atcommand)")
         .build()
         .expect("Failed to build web client.");
-    let body = client
+    let res = client
         .get(&info.submit_url)
         .header(
             reqwest::header::COOKIE,
             format!("REVEL_SESSION={}", session),
         )
         .send()
-        .context("Failed to open submission page.")?
-        .text()
-        .context("Failed to parse submission page to text")?;
-    let html = scraper::Html::parse_document(&body);
+        .context("Failed to open submission page.")?;
+
+    if res.url().as_str().contains("login") {
+        bail!(r#"You need to login to submit. See `atc config cookie-dir`"#);
+    }
+
+    let text = res.text()?;
+    let html = scraper::Html::parse_document(&text);
     let selector = Selector::parse(r#"input[name="csrf_token"]"#).unwrap();
     let token = html
         .select(&selector)
@@ -74,11 +78,21 @@ pub fn submit(path: PathBuf, session: &str) -> Result<()> {
         .send()
         .context("Failed to post your code.")?;
 
-    let url = res.url().as_str();
+    let url = res.url().as_str().to_owned();
+    let text = res.text()?;
+
+    // Permisson deniedでもNot Foundを含んでしまうので、先に検出
+    if text.contains("Permission") {
+        bail!("Permission denied. (Not registered or Not started yet?)");
+    }
+    if text.contains("Not Found") {
+        bail!("Submit url not found. See contest.toml");
+    }
+
     if url.contains("submissions") {
         open::that(url)?;
         Ok(())
     } else {
-        Err(anyhow!("Failed to submit. (Not in contest?)"))
+        bail!("Failed to submit. (Not in contest?)")
     }
 }
