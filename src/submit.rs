@@ -1,4 +1,4 @@
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Context, Result, anyhow, bail};
 use reqwest::blocking::Client;
 use scraper::Selector;
 use std::{fs, path::PathBuf};
@@ -74,11 +74,21 @@ pub fn submit(path: PathBuf, session: &str) -> Result<()> {
         .send()
         .context("Failed to post your code.")?;
 
-    let url = res.url().as_str();
+    let url = res.url().as_str().to_owned();
+    let text = res.text()?;
+
+    // Permisson deniedでもNot Foundを含んでしまうので、先に検出
+    if text.contains("Permission") {
+        bail!("Permission denied. (Not registered or Not started yet?)");
+    }
+    if text.contains("Not Found") {
+        bail!("Submit url not found. See contest.toml");
+    }
+
     if url.contains("submissions") {
         open::that(url)?;
         Ok(())
     } else {
-        Err(anyhow!("Failed to submit. (Not in contest?)"))
+        bail!("Failed to submit. (Not in contest?)")
     }
 }
