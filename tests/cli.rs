@@ -30,7 +30,6 @@ fn add_without_session_works() -> Result<()> {
         .env("ATCOMMAND_CONFIG_DIR", config_dir.path())
         .env("ATCOMMAND_DATA_DIR", data_dir.path())
         .arg("add")
-        .arg("-c")
         .arg("abc001")
         .arg("-l")
         .arg("cpp")
