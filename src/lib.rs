@@ -21,7 +21,6 @@ enum Commands {
     /// Add contest directory and download sample case.
     Add {
         /// Contest name (e.g. abc001).
-        #[arg(short, long)]
         contest_name: String,
 
         /// Language name (e.g. "cpp", "rust", "python") (must be added before) (settled to default if not used).
@@ -34,26 +33,25 @@ enum Commands {
         #[arg(short, long)]
         exec_command: String,
 
-        /// Path to sample case folder (e.g. "./abc001/a").
+        /// Path to sample case directory (e.g. "./abc001/a").
         #[arg(short, long)]
         dir: PathBuf,
     },
     /// Submit your code to judge server.
     Submit {
         /// Path to your code to submit.
-        #[arg(short, long)]
         path: PathBuf,
     },
     /// Change configurations.
     Config {
         #[command(subcommand)]
-        sub_command: ConfigCommand,
+        subcommand: ConfigCommand,
     },
 }
 
 #[derive(Subcommand, Debug)]
 enum ConfigCommand {
-    /// Print lauguage list.
+    /// Print language list.
     LangList,
     /// Add new language.
     AddLang {
@@ -61,11 +59,11 @@ enum ConfigCommand {
         #[arg(short, long)]
         lang: String,
 
-        /// Path to your template file (e.g. "./templace/main.cpp")
+        /// Path to your template file (e.g. "./template/main.cpp")
         #[arg(short, long)]
         path: PathBuf,
 
-        /// Path to your template file (e.g. "./templace/main.cpp")
+        /// Path to your template file (e.g. "./template/main.cpp")
         #[arg(short, long)]
         id: String,
     },
@@ -83,7 +81,7 @@ enum ConfigCommand {
     },
     /// Print the path of configuration file.
     ConfigDir,
-    /// Print the path of Cookie file.
+    /// Print the path of cookie file.
     CookieDir,
 }
 
@@ -105,7 +103,7 @@ pub fn main() -> Result<()> {
         Commands::Submit { path } => {
             submit::submit(path, &session)?;
         }
-        Commands::Config { sub_command } => match sub_command {
+        Commands::Config { subcommand } => match subcommand {
             ConfigCommand::LangList => {
                 config::print_lang_list(&config);
             }
