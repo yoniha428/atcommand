@@ -2,7 +2,7 @@ use anyhow::{Context, Result, anyhow, ensure};
 use std::{
     cmp::Ordering,
     fs,
-    io::{Read, Write},
+    io::Write,
     path::PathBuf,
     process::{Command, Stdio},
     time::{Duration, Instant},
@@ -23,6 +23,14 @@ impl JudgeResult {
             JudgeResult::TimeLimitExceeded => 1,
             JudgeResult::WrongAnswer => 2,
             JudgeResult::RuntimeError => 3,
+        }
+    }
+    fn message(&self) -> &'static str {
+        match self {
+            Self::Accepted => "Accepted",
+            Self::TimeLimitExceeded => "Time limit exceeded",
+            Self::WrongAnswer => "Wrong answer",
+            Self::RuntimeError => "Runtime error",
         }
     }
 }
@@ -88,14 +96,12 @@ pub fn test(exec_command: &str, dir: &PathBuf) -> Result<()> {
             Ok(acc.max(r))
         },
     )?;
-    match result {
-        JudgeResult::Accepted => {
-            println!("Accepted! tested {} cases", sample_ios.len());
-            Ok(())
-        }
-        JudgeResult::TimeLimitExceeded => Err(anyhow!("Time limit exceeded.")),
-        JudgeResult::WrongAnswer => Err(anyhow!("Wrong answer.")),
-        JudgeResult::RuntimeError => Err(anyhow!("Runtime error.")),
+
+    if result == JudgeResult::Accepted {
+        println!("Accepted! tested {} cases", sample_ios.len());
+        Ok(())
+    } else {
+        Err(anyhow!("{}.", result.message()))
     }
 }
 
@@ -118,58 +124,57 @@ fn run_case(
         .args(args)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
         .spawn()
         .context("Failed to run the code")?;
     child
         .stdin
-        .as_mut()
+        .take()
         .context("Failed to open stdin")?
         .write_all(sample_input.as_bytes())
         .context("Failed to write sample input to stdin")?;
     let start = Instant::now();
 
+    let mut res = JudgeResult::Accepted;
+
     loop {
         if let Some(status) = child.try_wait()? {
             if !status.success() {
-                println!("Runtime error on case {}.", i + 1);
-                println!("input:");
-                println!("{}", sample_input);
-                return Ok(JudgeResult::RuntimeError);
+                res = JudgeResult::RuntimeError;
             }
             break;
         }
-
         if start.elapsed() > tl {
             child.kill()?;
-            println!("Time limit exceeded on case {}", i + 1);
-            println!("input:");
-            println!("{}", sample_input);
-            return Ok(JudgeResult::TimeLimitExceeded);
+            res = JudgeResult::TimeLimitExceeded;
+            break;
         }
-
         std::thread::sleep(Duration::from_millis(1));
     }
 
-    let mut output = String::new();
-    child
-        .stdout
-        .context("Failed to open stdout")?
-        .read_to_string(&mut output)?;
-    let output = output;
-
-    if output
-        .split_whitespace()
-        .eq(sample_output.split_whitespace())
+    let output = child.wait_with_output()?;
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    if res == JudgeResult::Accepted
+        && stdout
+            .split_whitespace()
+            .ne(sample_output.split_whitespace())
     {
-        Ok(JudgeResult::Accepted)
-    } else {
-        println!("Wrong answer on case {}", i + 1);
-        println!("input:");
-        println!("{}", sample_input);
-        println!("sample output:");
-        println!("{}", sample_output);
-        println!("your output:");
-        println!("{}", output);
-        Ok(JudgeResult::WrongAnswer)
+        res = JudgeResult::WrongAnswer;
     }
+    let res = res;
+
+    // ACでないなら諸々を出力する
+    if res != JudgeResult::Accepted {
+        println!("{} on case {}", res.message(), i + 1);
+        println!("Input:\n{}", sample_input);
+        println!("Sample output:\n{}", sample_output);
+        println!("Your output:\n{}", stdout);
+    }
+    // ACでもstderrは出力する
+    if !stderr.is_empty() {
+        println!("Stderr:\n{}", stderr);
+    }
+
+    Ok(res)
 }
