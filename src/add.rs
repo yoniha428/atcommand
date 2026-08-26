@@ -204,13 +204,13 @@ fn fetch_document(url: &str, session: &str) -> Result<scraper::Html> {
         ensure!(
             response.status() == 429,
             "Failed to fetch URL {}. Status is {}, body is\n{}",
-            &url,
+            url,
             response.status(),
             response.text()?
         );
         thread::sleep(Duration::from_millis(300 * (1 << i)));
     }
-    bail!("Failed to fetch {} after retries.", &url);
+    bail!("Failed to fetch {} after retries.", url);
 }
 
 #[cfg(test)]
