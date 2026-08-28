@@ -47,10 +47,17 @@ impl PartialOrd for JudgeResult {
     }
 }
 
+struct TokenJudge {
+    accepted: bool,
+    used_error_judge: bool,
+}
+
 /// Run exec_command and input sample cases in dir
 /// Return Ok(()) if accepted
 /// Return Err(()) if not accepted
-pub fn test(exec_command: &str, dir: &PathBuf) -> Result<()> {
+pub fn test(exec_command: &str, dir: &PathBuf, exact: bool, eps: Option<f64>) -> Result<()> {
+    let eps = eps.or((!exact).then_some(1e-6));
+
     ensure!(fs::exists(dir)?, "Problem directory not found");
     let in_dir = dir.join("in");
     let out_dir = dir.join("out");
@@ -82,29 +89,40 @@ pub fn test(exec_command: &str, dir: &PathBuf) -> Result<()> {
     }
     let sample_ios = sample_ios;
 
-    let result = sample_ios.iter().enumerate().try_fold(
-        JudgeResult::Accepted,
-        |acc, (i, (input, output))| -> Result<JudgeResult> {
-            let r = run_case(
+    let (result, used_error_judge) = sample_ios.iter().enumerate().try_fold(
+        (JudgeResult::Accepted, false),
+        |(acc_r, acc_used), (i, (input, output))| -> Result<(JudgeResult, bool)> {
+            let (r, used) = run_case(
                 exec_command,
                 Duration::from_millis(2000),
                 i,
                 sample_ios.len(),
                 input,
                 output,
+                eps,
             )?;
-            Ok(acc.max(r))
+            Ok((acc_r.max(r), acc_used || used))
         },
     )?;
 
     if result == JudgeResult::Accepted {
         println!("Accepted! tested {} cases", sample_ios.len());
+        if used_error_judge {
+            println!(
+                "Warning: Used error judge for some cases. For exact judge, run `atc test <COMMAND> --no-error-judge`"
+            );
+            println!(
+                "Warning: If you want to change epsilon value (1e-6 by default), run `atc test <COMMAND> --eps=<VALUE>`"
+            );
+        }
         Ok(())
     } else {
         Err(anyhow!("{}.", result.message()))
     }
 }
 
+/// Return Ok((JudgeResult, used_error_judge)) if successfully run
+/// Return Err() otherwise
 fn run_case(
     exec_command: &str,
     tl: Duration,
@@ -112,7 +130,8 @@ fn run_case(
     size: usize,
     sample_input: &str,
     sample_output: &str,
-) -> Result<JudgeResult> {
+    eps: Option<f64>,
+) -> Result<(JudgeResult, bool)> {
     println!("Running case {} / {} ...", i + 1, size);
 
     let exec_command: Vec<_> = exec_command.split_whitespace().collect();
@@ -155,12 +174,36 @@ fn run_case(
     let output = child.wait_with_output()?;
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
-    if res == JudgeResult::Accepted
-        && stdout
-            .split_whitespace()
-            .ne(sample_output.split_whitespace())
-    {
-        res = JudgeResult::WrongAnswer;
+
+    let mut used_error_judge = false;
+    if res == JudgeResult::Accepted {
+        let stdout_vec: Vec<&str> = stdout.split_whitespace().collect();
+        let sample_vec: Vec<&str> = sample_output.split_whitespace().collect();
+        if stdout_vec.len() != sample_vec.len() {
+            res = JudgeResult::WrongAnswer;
+        } else {
+            let tokenjudge = stdout_vec
+                .iter()
+                .zip(sample_vec.iter())
+                .map(|(out, sam)| judge(out, sam, eps))
+                .try_fold(
+                    TokenJudge {
+                        accepted: true,
+                        used_error_judge: false,
+                    },
+                    |folded, token| -> Result<TokenJudge> {
+                        let token = token?;
+                        Ok(TokenJudge {
+                            accepted: folded.accepted && token.accepted,
+                            used_error_judge: folded.used_error_judge || token.used_error_judge,
+                        })
+                    },
+                )?;
+            used_error_judge = tokenjudge.used_error_judge;
+            if !tokenjudge.accepted {
+                res = JudgeResult::WrongAnswer;
+            }
+        }
     }
     let res = res;
 
@@ -176,5 +219,40 @@ fn run_case(
         println!("Stderr:\n{}", stderr);
     }
 
-    Ok(res)
+    Ok((res, used_error_judge))
+}
+
+fn judge(output: &str, sample: &str, eps: Option<f64>) -> Result<TokenJudge> {
+    if let Some(eps) = eps
+        && is_floating_value(output)
+        && is_floating_value(sample)
+    {
+        let output = output
+            .parse::<f64>()
+            .context("Failed to parse your output to f64.")?;
+        let sample = sample
+            .parse::<f64>()
+            .context("Failed to parse sample output to f64.")?;
+        let abs_error = (output - sample).abs();
+        let accepted = abs_error <= eps || (sample != 0.0 && (abs_error / sample).abs() <= eps);
+        Ok(TokenJudge {
+            accepted,
+            used_error_judge: true,
+        })
+    } else {
+        Ok(TokenJudge {
+            accepted: output == sample,
+            used_error_judge: false,
+        })
+    }
+}
+
+fn is_floating_value(s: &str) -> bool {
+    let Some((integer, fraction)) = s.split_once('.') else {
+        return false;
+    };
+    !integer.is_empty()
+        && !fraction.is_empty()
+        && integer.chars().all(|c| c.is_ascii_digit())
+        && fraction.chars().all(|c| c.is_ascii_digit())
 }

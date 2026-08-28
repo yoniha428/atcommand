@@ -36,6 +36,14 @@ enum Commands {
         /// Path to sample case directory (e.g. "./abc001/a").
         #[arg(short, long)]
         dir: PathBuf,
+
+        /// Option to use exact judge (Error judge is on by default).
+        #[arg(long)]
+        exact: bool,
+
+        /// Value of epsilon for error judge.
+        #[arg(long)]
+        eps: Option<f64>,
     },
     /// Submit your code to judge server.
     Submit {
@@ -97,8 +105,13 @@ pub fn main() -> Result<()> {
             let (path, id) = config::lang_path_id(lang, config)?;
             add::add_contest(ATCODER_BASE_URL, &contest_name, &path, &session, &id)?;
         }
-        Commands::Test { exec_command, dir } => {
-            test::test(&exec_command, &dir)?;
+        Commands::Test {
+            exec_command,
+            dir,
+            exact,
+            eps,
+        } => {
+            test::test(&exec_command, &dir, exact, eps)?;
         }
         Commands::Submit { path } => {
             submit::submit(path, &session)?;
