@@ -106,10 +106,13 @@ pub fn test(exec_command: &str, dir: &PathBuf, exact: bool, eps: Option<f64>) ->
     )?;
 
     if result == JudgeResult::Accepted {
-        println!("Accepted! tested {} cases", sample_ios.len());
+        println!(
+            "\x1b[38;2;92;184;92mAccepted!\x1b[m tested {} cases",
+            sample_ios.len()
+        );
         if used_error_judge {
             println!(
-                "Warning: Used error judge for some cases. For exact judge, run `atc test <COMMAND> --no-error-judge`"
+                "Warning: Used error judge for some cases. For exact judge, run `atc test <COMMAND> --exact`"
             );
             println!(
                 "Warning: If you want to change epsilon value (1e-6 by default), run `atc test <COMMAND> --eps=<VALUE>`"
@@ -117,11 +120,11 @@ pub fn test(exec_command: &str, dir: &PathBuf, exact: bool, eps: Option<f64>) ->
         }
         Ok(())
     } else {
-        Err(anyhow!("{}.", result.message()))
+        Err(anyhow!("\x1b[38;2;240;173;78m{}.\x1b[m", result.message()))
     }
 }
 
-/// Return Ok((JudgeResult, used_error_judge)) if successfully run
+/// Return Ok((JudgeResult, used_error_judge: bool)) if successfully run
 /// Return Err() otherwise
 fn run_case(
     exec_command: &str,
@@ -224,7 +227,6 @@ fn run_case(
 
 fn judge(output: &str, sample: &str, eps: Option<f64>) -> Result<TokenJudge> {
     if let Some(eps) = eps
-        && is_floating_value(output)
         && is_floating_value(sample)
     {
         let output = output
