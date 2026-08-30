@@ -71,20 +71,18 @@ enum ConfigCommand {
         #[arg(short, long)]
         path: PathBuf,
 
-        /// Path to your template file (e.g. "./template/main.cpp")
+        /// Language ID assigned by AtCoder
         #[arg(short, long)]
         id: String,
     },
     /// Delete language.
     DeleteLang {
         /// Language name (e.g. "cpp", "rust", "python")
-        #[arg(short, long)]
         lang: String,
     },
     /// Set default language
     DefaultLang {
         /// Language name (e.g. "cpp", "rust", "python")
-        #[arg(short, long)]
         lang: String,
     },
     /// Print the path of configuration file.
