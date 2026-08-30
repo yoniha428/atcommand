@@ -3,7 +3,7 @@ name = "atcommand"
 version = "0.1.0"
 edition = "2024"
 
-author = ["yoniha428"]
+authors = ["yoniha428"]
 description = "CLI tool for AtCoder"
 repository = "https://github.com/yoniha428/atcommand"
 license = "MIT"
