@@ -28,7 +28,7 @@ pub fn add_contest(
     // もうあるならエラー
     ensure!(
         !contest_path.exists(),
-        "Directory {} is already exists.",
+        "Directory {} already exists.",
         contest_path.to_string_lossy()
     );
 
@@ -163,6 +163,7 @@ fn fetch_problem_samples(url: &str, session: &str) -> Result<(Vec<String>, Vec<S
                 return None;
             }
             let pre = element.select(&pre_selector).next()?.inner_html();
+            let pre = html_escape::decode_html_entities(&pre).into_owned();
             Some(pre)
         })
         .collect();
@@ -173,6 +174,7 @@ fn fetch_problem_samples(url: &str, session: &str) -> Result<(Vec<String>, Vec<S
                 return None;
             }
             let pre = element.select(&pre_selector).next()?.inner_html();
+            let pre = html_escape::decode_html_entities(&pre).into_owned();
             Some(pre)
         })
         .collect();

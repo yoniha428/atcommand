@@ -227,7 +227,7 @@ fn run_case(
 
 fn judge(output: &str, sample: &str, eps: Option<f64>) -> Result<TokenJudge> {
     if let Some(eps) = eps
-        && is_floating_value(sample)
+        && (is_floating_value(sample) || is_floating_value(output))
     {
         let output = output
             .parse::<f64>()
@@ -253,8 +253,43 @@ fn is_floating_value(s: &str) -> bool {
     let Some((integer, fraction)) = s.split_once('.') else {
         return false;
     };
+    let integer = integer.strip_prefix('-').unwrap_or(integer);
     !integer.is_empty()
         && !fraction.is_empty()
         && integer.chars().all(|c| c.is_ascii_digit())
         && fraction.chars().all(|c| c.is_ascii_digit())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn is_floating_value_correct() -> Result<()> {
+        for i in [
+            "0.0",
+            "1.0",
+            "-1.0",
+            "1.1",
+            "2.22",
+            "1000000000000.0",
+            "-10000000000.0",
+        ] {
+            assert!(is_floating_value(i));
+        }
+        for i in ["0", "1", "-1", "a.0", "0.a", "1e3"] {
+            assert!(!is_floating_value(i));
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn exact_judge_works() -> Result<()> {
+        for (output, sample) in [("a", "a"), ("aaa", "aaa"), ("0", "0"), ("100000", "100000")] {
+            let res = judge(output, sample, None)?;
+            assert!(res.accepted && !res.used_error_judge);
+        }
+        Ok(())
+    }
 }
